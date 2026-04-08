@@ -1,0 +1,37 @@
+<div class="chat-container">
+  <!-- Left column: Avatar -->
+  <div class="chat-col left-col">
+    <div class="avatar-3d">
+    </div>
+    <h2>SR Chat</h2>
+    <app-avatar></app-avatar>
+  </div>
+
+  <!-- Right column: Chat + Input -->
+  <div class="chat-col right-col">
+    <!-- Scrollable chat messages -->
+    <div class="chat-content" #chatContent>
+      <div *ngFor="let msg of messages" [ngClass]="msg.sender">
+        <p>{{ msg.text }}</p>
+        <!-- <span class="timestamp">{{ msg.timestamp | date:'shortTime' }}</span> -->
+      </div>
+
+      <!-- Typing loader -->
+      <div *ngIf="loading" class="typing">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
+    </div>
+
+    <!-- Fixed input footer -->
+    <div class="chat-footer">
+      <input
+        [(ngModel)]="userMessage"
+        (keydown.enter)="onSendMessage()"
+        placeholder="Type a message..."
+      />
+      <button (click)="onSendMessage()"><i class="fas fa-paper-plane"></i></button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,9 @@
+canvas {
+  width: 100%;
+  max-width: calc(100vw - 533px) !important;
+  height: 100%;
+}
+
+.avatar-container {
+  width: 50%;
+}

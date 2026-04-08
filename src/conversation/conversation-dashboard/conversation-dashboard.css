@@ -1,0 +1,63 @@
+.card {
+  height: 97vh;          
+  width: 100%;           /* fill full viewport */
+  max-height: 100%;
+  max-width: 100%;
+  background: linear-gradient(43deg, #4158D0 0%, #C850C0 46%, #FFCC70 100%);
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  border-radius: 0;
+  box-sizing: border-box; /* IMPORTANT: include padding in size */
+
+  /* remove any accidental overflow */
+  overflow: hidden;
+
+  /* Optional 3D effect */
+  transform-style: preserve-3d;
+  perspective: 1000px;
+  transition: transform 0.5s ease;
+}
+
+.card:hover {
+  transform: rotateY(3deg) rotateX(3deg); /* reduce scale to prevent scrollbars */
+  box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+}
+
+/* Card content */
+.card-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 0 20px; /* horizontal padding only, no vertical to prevent overflow */
+  max-height: 100%;
+  max-width: 100%;
+  box-sizing: border-box; /* important */
+  overflow: hidden;       /* hide any overflowing content */
+}
+
+.card-content .card-title {
+  font-size: 3vw; /* responsive size */
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.card-content .card-para {
+  font-size: 1.5vw; /* responsive size */
+  opacity: 0.9;
+}
+
+/* Hide scrollbars for all browsers */
+body::-webkit-scrollbar,
+.card::-webkit-scrollbar {
+  display: none;
+}
+
+.card-para {
+      cursor: pointer;
+}
