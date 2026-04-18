@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import * as SpeechSDK from 'microsoft-cognitiveservices-speech-sdk';
 @Component({
   selector: 'app-avatar',
   standalone: true,
@@ -133,68 +132,68 @@ export class Avatar implements AfterViewInit, OnDestroy {
     );
   }
 
-//   speak(message: string) {
-//   const utterance = new SpeechSynthesisUtterance(message);
-//   utterance.rate = 1;
-//   utterance.pitch = 1;
-//   utterance.volume = 1;
+  speak(message: string) {
+  const utterance = new SpeechSynthesisUtterance(message);
+  utterance.rate = 1;
+  utterance.pitch = 1;
+  utterance.volume = 1;
 
-//   // stop previous speech (important fix)
-//   speechSynthesis.cancel();
+  // stop previous speech (important fix)
+  speechSynthesis.cancel();
 
-//   speechSynthesis.speak(utterance);
+  speechSynthesis.speak(utterance);
 
-//   const animateSpeech = () => {
-//     if (speechSynthesis.speaking) {
-//       if (this.mouthMesh?.morphTargetInfluences) {
-//         this.mouthMesh.morphTargetInfluences[0] = Math.random();
-//       }
-//       requestAnimationFrame(animateSpeech);
-//     } else {
-//       if (this.mouthMesh?.morphTargetInfluences) {
-//         this.mouthMesh.morphTargetInfluences[0] = 0;
-//       }
-//     }
-//   };
-
-//   animateSpeech();
-// }
-
-speak(message: string) {
-
-  const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(
-    "YOUR_AZURE_KEY",
-    "YOUR_REGION"
-  );
-
-  speechConfig.speechSynthesisVoiceName = "en-US-JennyNeural";
-
-  const audioConfig = SpeechSDK.AudioConfig.fromDefaultSpeakerOutput();
-
-  const synthesizer = new SpeechSDK.SpeechSynthesizer(
-    speechConfig,
-    audioConfig
-  );
-
-  // 🔥 VISEME EVENT
-  synthesizer.visemeReceived = (s, e) => {
-    const visemeId = e.visemeId;
-
-    this.applyAzureViseme(visemeId);
+  const animateSpeech = () => {
+    if (speechSynthesis.speaking) {
+      if (this.mouthMesh?.morphTargetInfluences) {
+        this.mouthMesh.morphTargetInfluences[0] = Math.random();
+      }
+      requestAnimationFrame(animateSpeech);
+    } else {
+      if (this.mouthMesh?.morphTargetInfluences) {
+        this.mouthMesh.morphTargetInfluences[0] = 0;
+      }
+    }
   };
 
-  synthesizer.speakTextAsync(
-    message,
-    result => {
-      console.log("Speech finished");
-      synthesizer.close();
-    },
-    error => {
-      console.error(error);
-      synthesizer.close();
-    }
-  );
+  animateSpeech();
 }
+
+// speak(message: string) {
+
+//   const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(
+//     "YOUR_AZURE_KEY",
+//     "YOUR_REGION"
+//   );
+
+//   speechConfig.speechSynthesisVoiceName = "en-US-JennyNeural";
+
+//   const audioConfig = SpeechSDK.AudioConfig.fromDefaultSpeakerOutput();
+
+//   const synthesizer = new SpeechSDK.SpeechSynthesizer(
+//     speechConfig,
+//     audioConfig
+//   );
+
+//   // 🔥 VISEME EVENT
+//   synthesizer.visemeReceived = (s, e) => {
+//     const visemeId = e.visemeId;
+
+//     this.applyAzureViseme(visemeId);
+//   };
+
+//   synthesizer.speakTextAsync(
+//     message,
+//     result => {
+//       console.log("Speech finished");
+//       synthesizer.close();
+//     },
+//     error => {
+//       console.error(error);
+//       synthesizer.close();
+//     }
+//   );
+// }
 private applyAzureViseme(id: number) {
   if (!this.mouthMesh?.morphTargetInfluences) return;
 
