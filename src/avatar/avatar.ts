@@ -39,7 +39,7 @@ export class Avatar implements AfterViewInit, OnDestroy {
   this.animate();
   // this.speak('Faaahhhh Faah faahhh');
 
-  // this.startMic(); 
+  this.startMic(); 
 
   window.addEventListener('resize', () => {
     this.camera.aspect = window.innerWidth / window.innerHeight;
