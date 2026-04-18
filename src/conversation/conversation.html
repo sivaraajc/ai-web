@@ -3,7 +3,7 @@
   <div class="chat-col left-col">
     <div class="avatar-3d">
     </div>
-    <h2>SR Chat</h2>
+    <!-- <h2>SR Chat</h2> -->
     <app-avatar></app-avatar>
   </div>
 
@@ -25,13 +25,31 @@
     </div>
 
     <!-- Fixed input footer -->
-    <div class="chat-footer">
-      <input
-        [(ngModel)]="userMessage"
-        (keydown.enter)="onSendMessage()"
-        placeholder="Type a message..."
-      />
+<div class="chat-footer" *ngIf="isChatOpen">
+     <input
+  #chatInput
+  [(ngModel)]="userMessage"
+  (keydown.enter)="onSendMessage()"
+  placeholder="Type a message..."
+/>
       <button (click)="onSendMessage()"><i class="fas fa-paper-plane"></i></button>
     </div>
+     <div class="dd">
+    <div class="action-buttons">
+      <button
+        class="action-btn chat-btn"
+       (click)="openChatInput()"
+
+      >
+        <mat-icon>chat</mat-icon>
+      </button>
+      <button
+        class="action-btn mic-btn"
+      
+      >
+        <mat-icon>mic</mat-icon>
+      </button>
+    </div>
+  </div>
   </div>
 </div>

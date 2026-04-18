@@ -8,8 +8,8 @@ import {
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { ConversationService } from '../service/conversation-service';
-import { Avatar } from '../avatar/avatar'; 
-
+import { Avatar } from "../avatar/avatar";
+import { MatIconModule } from '@angular/material/icon';
 interface Message {
   text: string;
   sender: 'user' | 'ai';
@@ -21,16 +21,17 @@ interface Message {
   standalone: true,
   templateUrl: './conversation.html',
   styleUrls: ['./conversation.css'],
-  imports: [FormsModule, CommonModule, Avatar], 
+  imports: [FormsModule, CommonModule, Avatar, MatIconModule], 
 })
 export class Conversation implements AfterViewChecked {
-  @ViewChild('chatContent') chatContent!: ElementRef;
 
+  @ViewChild('chatContent') chatContent!: ElementRef;
+  @ViewChild('chatInput') chatInput!: ElementRef<HTMLInputElement>;
   messages: Message[] = [];
   userMessage: string = '';
   loading: boolean = false;
   lastSpokenIndex = -1;
-
+isChatOpen = false;
   constructor(private conversationser: ConversationService) {}
 
   async onSendMessage() {
@@ -58,24 +59,26 @@ export class Conversation implements AfterViewChecked {
     });
   }
 
-  ngAfterViewChecked() {
-    const lastMsgIndex = this.messages.length - 1;
+ ngAfterViewChecked() {
+  const lastMsgIndex = this.messages.length - 1;
 
-    if (
-      lastMsgIndex >= 0 &&
-      this.messages[lastMsgIndex].sender === 'ai' &&
-      this.lastSpokenIndex !== lastMsgIndex
-    ) {
-      this.lastSpokenIndex = lastMsgIndex;
+  if (
+    lastMsgIndex >= 0 &&
+    this.messages[lastMsgIndex].sender === 'ai' &&
+    this.lastSpokenIndex !== lastMsgIndex
+  ) {
+    this.lastSpokenIndex = lastMsgIndex;
 
-      this.speakText(this.messages[lastMsgIndex].text);
+    this.speakText(this.messages[lastMsgIndex].text);
 
-      if (this.chatContent) {
-        this.chatContent.nativeElement.scrollTop =
-          this.chatContent.nativeElement.scrollHeight;
-      }
-    }
+    requestAnimationFrame(() => {
+      this.chatContent?.nativeElement.scrollTo({
+        top: this.chatContent.nativeElement.scrollHeight,
+        behavior: 'smooth'
+      });
+    });
   }
+}
 
   speakText(text: string) {
     window.speechSynthesis.cancel();
@@ -87,4 +90,12 @@ export class Conversation implements AfterViewChecked {
 
     window.speechSynthesis.speak(speech);
   }
+
+openChatInput() {
+  this.isChatOpen = true;
+
+  setTimeout(() => {
+    this.chatInput?.nativeElement?.focus();
+  }, 100);
+}
 }

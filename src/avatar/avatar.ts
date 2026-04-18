@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-
+import * as SpeechSDK from 'microsoft-cognitiveservices-speech-sdk';
 @Component({
   selector: 'app-avatar',
   standalone: true,
@@ -33,18 +33,21 @@ export class Avatar implements AfterViewInit, OnDestroy {
   // Orbit controls
   private controls!: OrbitControls;
 
-  ngAfterViewInit(): void {
-    this.initThree();
-    this.loadModel();
-    this.animate();
-    this.speak('Faaahhhh Faah faahhh');
-    // Resize
-    window.addEventListener('resize', () => {
-      this.camera.aspect = window.innerWidth / window.innerHeight;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-  }
+ ngAfterViewInit(): void {
+  this.initThree();
+  this.loadModel();
+  this.animate();
+  // this.speak('Faaahhhh Faah faahhh');
+
+  // this.startMic(); 
+
+  window.addEventListener('resize', () => {
+    this.camera.aspect = window.innerWidth / window.innerHeight;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+}
+  
 
   initThree() {
     const canvas = this.canvasRef.nativeElement;
@@ -57,8 +60,8 @@ export class Avatar implements AfterViewInit, OnDestroy {
       0.6,
       2000,
     );
-    this.camera.position.set(2.5, 1, 2.3);
     this.camera.lookAt(0, 1.5, 0);
+    this.camera.position.set(0, 1.5, 3); // was (2.5, 1, 2.3)
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -130,27 +133,100 @@ export class Avatar implements AfterViewInit, OnDestroy {
     );
   }
 
-  speak(message: string) {
-    const utterance = new SpeechSynthesisUtterance(message);
+//   speak(message: string) {
+//   const utterance = new SpeechSynthesisUtterance(message);
+//   utterance.rate = 1;
+//   utterance.pitch = 1;
+//   utterance.volume = 1;
 
-    speechSynthesis.speak(utterance);
+//   // stop previous speech (important fix)
+//   speechSynthesis.cancel();
 
-    const animateSpeech = () => {
-      if (speechSynthesis.speaking) {
-        if (this.mouthMesh?.morphTargetInfluences) {
-          // Simulate syllable movement with varied values
-          this.mouthMesh.morphTargetInfluences[0] = Math.random() * 0.8;
-        }
-        requestAnimationFrame(animateSpeech);
-      } else {
-        if (this.mouthMesh?.morphTargetInfluences) {
-          this.mouthMesh.morphTargetInfluences[0] = 0;
-        }
-      }
-    };
+//   speechSynthesis.speak(utterance);
 
-    animateSpeech();
+//   const animateSpeech = () => {
+//     if (speechSynthesis.speaking) {
+//       if (this.mouthMesh?.morphTargetInfluences) {
+//         this.mouthMesh.morphTargetInfluences[0] = Math.random();
+//       }
+//       requestAnimationFrame(animateSpeech);
+//     } else {
+//       if (this.mouthMesh?.morphTargetInfluences) {
+//         this.mouthMesh.morphTargetInfluences[0] = 0;
+//       }
+//     }
+//   };
+
+//   animateSpeech();
+// }
+
+speak(message: string) {
+
+  const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(
+    "YOUR_AZURE_KEY",
+    "YOUR_REGION"
+  );
+
+  speechConfig.speechSynthesisVoiceName = "en-US-JennyNeural";
+
+  const audioConfig = SpeechSDK.AudioConfig.fromDefaultSpeakerOutput();
+
+  const synthesizer = new SpeechSDK.SpeechSynthesizer(
+    speechConfig,
+    audioConfig
+  );
+
+  // 🔥 VISEME EVENT
+  synthesizer.visemeReceived = (s, e) => {
+    const visemeId = e.visemeId;
+
+    this.applyAzureViseme(visemeId);
+  };
+
+  synthesizer.speakTextAsync(
+    message,
+    result => {
+      console.log("Speech finished");
+      synthesizer.close();
+    },
+    error => {
+      console.error(error);
+      synthesizer.close();
+    }
+  );
+}
+private applyAzureViseme(id: number) {
+  if (!this.mouthMesh?.morphTargetInfluences) return;
+
+  const m = this.mouthMesh.morphTargetInfluences;
+
+  m.fill(0);
+
+  switch (id) {
+    case 1: // neutral
+      m[0] = 0.1;
+      break;
+
+    case 2: // open mouth
+      m[2] = 0.6;
+      break;
+
+    case 4: // wide open
+      m[3] = 1.0;
+      break;
+
+    case 8: // lips closed
+      m[1] = 0.8;
+      break;
+
+    case 14: // teeth visible
+      m[4] = 0.7;
+      break;
+
+    default:
+      m[0] = 0.2;
   }
+}
 
   setHandsDown() {
     if (this.leftArm && this.rightArm) {
@@ -197,4 +273,55 @@ export class Avatar implements AfterViewInit, OnDestroy {
     cancelAnimationFrame(this.animationId);
     this.renderer.dispose();
   }
+  // 🔥 ADD: MIC RECOGNITION (DO NOT CHANGE ANY EXISTING CODE)
+private recognition!: any;
+
+private startMic() {
+  const SpeechRecognition =
+    (window as any).SpeechRecognition ||
+    (window as any).webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    console.warn('Mic not supported in this browser');
+    return;
+  }
+
+  this.recognition = new SpeechRecognition();
+  this.recognition.continuous = true;
+  this.recognition.interimResults = false;
+  this.recognition.lang = 'en-US';
+
+  this.recognition.onresult = (event: any) => {
+    const text = event.results[event.results.length - 1][0].transcript
+      .toLowerCase();
+
+    console.log('Mic input:', text);
+
+    this.handleMicCommand(text);
+  };
+
+  this.recognition.onerror = (e: any) => {
+    console.log('Mic error:', e);
+  };
+
+  this.recognition.start();
+}
+private handleMicCommand(text: string) {
+  let reply = "I didn't understand that";
+
+  if (text.includes('hello')) {
+    reply = 'Hello! I am your AI avatar';
+  }
+
+  if (text.includes('how are you')) {
+    reply = "I'm fine and ready to help you";
+  }
+
+  if (text.includes('stop')) {
+    this.recognition.stop();
+    reply = 'Mic stopped';
+  }
+
+  this.speak(reply);
+}
 }
