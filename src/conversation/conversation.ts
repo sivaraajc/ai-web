@@ -32,6 +32,7 @@ export class Conversation implements AfterViewChecked {
   loading: boolean = false;
   lastSpokenIndex = -1;
 isChatOpen = false;
+isMicMode = false;
   constructor(private conversationser: ConversationService) {}
 
   async onSendMessage() {
@@ -97,5 +98,8 @@ openChatInput() {
   setTimeout(() => {
     this.chatInput?.nativeElement?.focus();
   }, 100);
+}
+toggleMicrophone() {
+  this.isMicMode = !this.isMicMode;
 }
 }

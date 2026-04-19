@@ -12,9 +12,8 @@
     <!-- Scrollable chat messages -->
     <div class="chat-content" #chatContent>
       <div *ngFor="let msg of messages" [ngClass]="msg.sender">
-        <p>{{ msg.text }}</p>
-        <!-- <span class="timestamp">{{ msg.timestamp | date:'shortTime' }}</span> -->
-      </div>
+  <p>{{ msg.text }}</p>
+</div>
 
       <!-- Typing loader -->
       <div *ngIf="loading" class="typing">

@@ -142,3 +142,39 @@
   }
 }
 
+
+
+.chat-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  height: 100%;
+  padding-bottom: 80px;
+}
+
+/* Base message style */
+.chat-content div {
+  max-width: 70%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  word-wrap: break-word;
+}
+
+/* USER messages → right side */
+.user {
+  align-self: flex-end;
+  background: #00bcd4;
+  color: white;
+  text-align: right;
+  border-bottom-right-radius: 4px;
+}
+
+/* AI messages → left side */
+.ai {
+  align-self: flex-start;
+  background: #2b2f3a;
+  color: white;
+  text-align: left;
+  border-bottom-left-radius: 4px;
+}

@@ -78,7 +78,6 @@ constructor(private cdr: ChangeDetectorRef) {}
     dirLight.position.set(3, 50, 10);
     this.scene.add(dirLight);
 
-    // ✅ OrbitControls setup
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
@@ -96,7 +95,7 @@ constructor(private cdr: ChangeDetectorRef) {}
       (gltf) => {
         this.model = gltf.scene;
         this.model.scale.set(1.5, 1.5, 1.5);
-        this.model.position.set(0, -1, 0);
+        this.model.position.set(0, -0.9, 0);
         this.scene.add(this.model);
 
         // Debug (optional)
