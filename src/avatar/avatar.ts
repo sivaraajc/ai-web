@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -12,7 +12,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 })
 export class Avatar implements AfterViewInit, OnDestroy {
   @ViewChild('canvas3d', { static: true }) canvasRef!: ElementRef;
-
+  isloader:boolean = true
   private renderer!: THREE.WebGLRenderer;
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
@@ -28,7 +28,7 @@ export class Avatar implements AfterViewInit, OnDestroy {
   private rightArm!: THREE.Object3D;
   private leftForeArm!: THREE.Object3D;
   private rightForeArm!: THREE.Object3D;
-
+constructor(private cdr: ChangeDetectorRef) {}
   // Orbit controls
   private controls!: OrbitControls;
 
@@ -38,7 +38,7 @@ export class Avatar implements AfterViewInit, OnDestroy {
   this.animate();
   // this.speak('Faaahhhh Faah faahhh');
 
-  this.startMic(); 
+  // this.startMic(); 
 
   window.addEventListener('resize', () => {
     this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -103,7 +103,8 @@ export class Avatar implements AfterViewInit, OnDestroy {
         this.model.traverse((obj) => {
           console.log('Bone:', obj.name);
         });
-
+       this.isloader = false;
+        this.cdr.detectChanges(); 
         // Face references
         this.mouthMesh = this.model.getObjectByName('Head') as THREE.Mesh;
         this.leftEye = this.model.getObjectByName('LeftEye')!;

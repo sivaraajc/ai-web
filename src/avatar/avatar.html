@@ -1,4 +1,15 @@
 <div class="avatar-container">
   <canvas #canvas3d></canvas>
+
+  <!-- overlay loader -->
+  <div *ngIf="isloader" class="loader-overlay">
+    <!-- <div class="loader">
+      <span class="loader__dot"></span>
+      <span class="loader__dot"></span>
+      <span class="loader__dot"></span>
+    </div>
+  </div> -->
+  <div class="loader blurjs"></div>
 </div>
+
 <div id="speech-bubble" class="speech-bubble"></div>
