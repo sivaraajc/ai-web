@@ -95,7 +95,7 @@ constructor(private cdr: ChangeDetectorRef) {}
       (gltf) => {
         this.model = gltf.scene;
         this.model.scale.set(1.5, 1.5, 1.5);
-        this.model.position.set(0, -0.9, 0);
+        this.model.position.set(0, -0.8, 0);
         this.scene.add(this.model);
 
         // Debug (optional)

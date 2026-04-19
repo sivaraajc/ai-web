@@ -50,28 +50,22 @@ isMicMode = false;
     this.loading = true;
 
     const response = await this.conversationser.chat(messageText);
-
-    this.loading = false;
-
     this.messages.push({
       text: response,
       sender: 'ai',
       timestamp: new Date()
     });
+        this.loading = false;
+        setTimeout(() => {
+    this.scrollToBottom();
+  });
   }
 
- ngAfterViewChecked() {
+ngAfterViewChecked() {
   const lastMsgIndex = this.messages.length - 1;
 
-  if (
-    lastMsgIndex >= 0 &&
-    this.messages[lastMsgIndex].sender === 'ai' &&
-    this.lastSpokenIndex !== lastMsgIndex
-  ) {
-    this.lastSpokenIndex = lastMsgIndex;
-
-    this.speakText(this.messages[lastMsgIndex].text);
-
+  // scroll to bottom whenever loading or new ai message
+  if (this.loading || (lastMsgIndex >= 0 && this.messages[lastMsgIndex].sender === 'ai' && this.lastSpokenIndex !== lastMsgIndex)) {
     requestAnimationFrame(() => {
       this.chatContent?.nativeElement.scrollTo({
         top: this.chatContent.nativeElement.scrollHeight,
@@ -79,8 +73,16 @@ isMicMode = false;
       });
     });
   }
-}
 
+  if (
+    lastMsgIndex >= 0 &&
+    this.messages[lastMsgIndex].sender === 'ai' &&
+    this.lastSpokenIndex !== lastMsgIndex
+  ) {
+    this.lastSpokenIndex = lastMsgIndex;
+    this.speakText(this.messages[lastMsgIndex].text);
+  }
+}
   speakText(text: string) {
     window.speechSynthesis.cancel();
 
@@ -93,7 +95,7 @@ isMicMode = false;
   }
 
 openChatInput() {
-  this.isChatOpen = true;
+  this.isChatOpen = !this.isChatOpen;
 
   setTimeout(() => {
     this.chatInput?.nativeElement?.focus();
@@ -101,5 +103,13 @@ openChatInput() {
 }
 toggleMicrophone() {
   this.isMicMode = !this.isMicMode;
+}
+private scrollToBottom() {
+  try {
+    this.chatContent.nativeElement.scrollTo({
+      top: this.chatContent.nativeElement.scrollHeight,
+      behavior: 'smooth'
+    });
+  } catch {}
 }
 }

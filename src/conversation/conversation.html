@@ -1,54 +1,50 @@
-<div class="chat-container">
+<div class="chat-container" [ngClass]="{'chat-open': isChatOpen}">
+
   <!-- Left column: Avatar -->
-  <div class="chat-col left-col">
-    <div class="avatar-3d">
-    </div>
-    <!-- <h2>SR Chat</h2> -->
+  <div class="left-col">
     <app-avatar></app-avatar>
   </div>
 
-  <!-- Right column: Chat + Input -->
-  <div class="chat-col right-col">
-    <!-- Scrollable chat messages -->
+  <!-- Right column: only visible when chat open -->
+  <div class="right-col" *ngIf="isChatOpen">
+
     <div class="chat-content" #chatContent>
       <div *ngFor="let msg of messages" [ngClass]="msg.sender">
-  <p>{{ msg.text }}</p>
-</div>
-
-      <!-- Typing loader -->
-      <div *ngIf="loading" class="typing">
-        <span class="dot"></span>
-        <span class="dot"></span>
-        <span class="dot"></span>
+        <p>{{ msg.text }}</p>
       </div>
+      <div *ngIf="loading" class="typing-wrapper">
+  <span class="loader"></span>
+</div>
     </div>
 
-    <!-- Fixed input footer -->
-<div class="chat-footer" *ngIf="isChatOpen">
-     <input
-  #chatInput
-  [(ngModel)]="userMessage"
-  (keydown.enter)="onSendMessage()"
-  placeholder="Type a message..."
-/>
-      <button (click)="onSendMessage()"><i class="fas fa-paper-plane"></i></button>
+    <div class="chat-footer">
+      <input
+        #chatInput
+        [(ngModel)]="userMessage"
+        (keydown.enter)="onSendMessage()"
+        placeholder="Type a message..."
+      />
+      <button (click)="onSendMessage()">
+        <mat-icon>send</mat-icon>
+      </button>
     </div>
-     <div class="dd">
+
+  </div>
+
+  <!-- Bottom bar always visible -->
+  <div class="dd">
     <div class="action-buttons">
       <button
         class="action-btn chat-btn"
-       (click)="openChatInput()"
-
+        [ngClass]="{'active': isChatOpen}"
+        (click)="openChatInput()"
       >
         <mat-icon>chat</mat-icon>
       </button>
-      <button
-        class="action-btn mic-btn"
-      
-      >
+      <button class="action-btn mic-btn">
         <mat-icon>mic</mat-icon>
       </button>
     </div>
   </div>
-  </div>
+
 </div>
