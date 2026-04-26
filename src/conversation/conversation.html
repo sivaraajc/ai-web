@@ -2,7 +2,7 @@
 
   <!-- Left column: Avatar -->
   <div class="left-col">
-    <app-avatar></app-avatar>
+    <app-avatar #avatarRef></app-avatar>
   </div>
 
   <!-- Right column: only visible when chat open -->
@@ -22,10 +22,15 @@
         #chatInput
         [(ngModel)]="userMessage"
         (keydown.enter)="onSendMessage()"
-        placeholder="Type a message..."
+        [disabled]="loading"
+        [placeholder]="loading ? 'AI is typing...' : 'Type a message...'"
       />
-      <button (click)="onSendMessage()">
-        <mat-icon>send</mat-icon>
+      <button
+        (click)="onSendMessage()"
+        [disabled]="loading || !userMessage.trim()"
+        [ngClass]="{'can-send': !loading && !!userMessage.trim()}"
+      >
+        <mat-icon>{{ loading ? 'hourglass_top' : 'send' }}</mat-icon>
       </button>
     </div>
 
@@ -41,7 +46,11 @@
       >
         <mat-icon>chat</mat-icon>
       </button>
-      <button class="action-btn mic-btn">
+      <button
+        class="action-btn mic-btn"
+        [ngClass]="{'listening': isMicMode}"
+        (click)="toggleMicrophone()"
+      >
         <mat-icon>mic</mat-icon>
       </button>
     </div>

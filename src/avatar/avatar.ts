@@ -20,8 +20,22 @@ export class Avatar implements AfterViewInit, OnDestroy {
   private animationId!: number;
 
   private mouthMesh!: THREE.Mesh;
+  private jawBone: THREE.Object3D | null = null;
+  private jawBaseX = 0;
+  private headBone: THREE.Object3D | null = null;
+  private headBaseX = 0;
+  private headBaseY = 0;
+  private chestBone: THREE.Object3D | null = null;
+  private chestBaseX = 0;
   private leftEye!: THREE.Object3D;
   private rightEye!: THREE.Object3D;
+  private speechUtterance: SpeechSynthesisUtterance | null = null;
+  private lipSyncTimer: ReturnType<typeof setInterval> | null = null;
+  private isSpeaking = false;
+  private mouthOpenAmount = 0;
+  private mouthTargetAmount = 0;
+  private blinkAmount = 0;
+  private nextBlinkAt = 0;
 
   // Arm bones
   private leftArm!: THREE.Object3D;
@@ -106,8 +120,35 @@ constructor(private cdr: ChangeDetectorRef) {}
         this.cdr.detectChanges(); 
         // Face references
         this.mouthMesh = this.model.getObjectByName('Head') as THREE.Mesh;
+        this.jawBone =
+          this.model.getObjectByName('Jaw') ||
+          this.model.getObjectByName('jaw') ||
+          this.model.getObjectByName('mixamorigJaw') ||
+          this.model.getObjectByName('CC_Base_JawRoot') ||
+          null;
+        if (this.jawBone) {
+          this.jawBaseX = this.jawBone.rotation.x;
+        }
+        this.headBone =
+          this.model.getObjectByName('Head') ||
+          this.model.getObjectByName('mixamorigHead') ||
+          this.model.getObjectByName('CC_Base_Head') ||
+          null;
+        if (this.headBone) {
+          this.headBaseX = this.headBone.rotation.x;
+          this.headBaseY = this.headBone.rotation.y;
+        }
+        this.chestBone =
+          this.model.getObjectByName('Spine2') ||
+          this.model.getObjectByName('mixamorigSpine2') ||
+          this.model.getObjectByName('Chest') ||
+          null;
+        if (this.chestBone) {
+          this.chestBaseX = this.chestBone.rotation.x;
+        }
         this.leftEye = this.model.getObjectByName('LeftEye')!;
         this.rightEye = this.model.getObjectByName('RightEye')!;
+        this.nextBlinkAt = performance.now() + this.getNextBlinkDelay();
 
         // Arm bones (try multiple common names)
         this.leftArm =
@@ -133,31 +174,50 @@ constructor(private cdr: ChangeDetectorRef) {}
   }
 
   speak(message: string) {
-  const utterance = new SpeechSynthesisUtterance(message);
-  utterance.rate = 1;
-  utterance.pitch = 1;
-  utterance.volume = 1;
+    const text = message.trim();
+    if (!text) return;
 
-  // stop previous speech (important fix)
-  speechSynthesis.cancel();
+    speechSynthesis.cancel();
+    this.resetSpeechFace();
 
-  speechSynthesis.speak(utterance);
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    utterance.lang = 'en-IN';
 
-  const animateSpeech = () => {
-    if (speechSynthesis.speaking) {
-      if (this.mouthMesh?.morphTargetInfluences) {
-        this.mouthMesh.morphTargetInfluences[0] = Math.random();
+    utterance.onstart = () => {
+      this.isSpeaking = true;
+      this.mouthTargetAmount = 0.2;
+      this.startLipSyncFallback();
+    };
+
+    utterance.onboundary = (event) => {
+      // Approximate viseme intensity from spoken character type.
+      const spokenChar = text[event.charIndex] ?? '';
+      const isVowel = /[aeiou]/i.test(spokenChar);
+      const isClosedLip = /[bmp]/i.test(spokenChar);
+
+      if (isClosedLip) {
+        this.mouthTargetAmount = 0.08;
+      } else if (isVowel) {
+        this.mouthTargetAmount = 0.9;
+      } else {
+        this.mouthTargetAmount = 0.45;
       }
-      requestAnimationFrame(animateSpeech);
-    } else {
-      if (this.mouthMesh?.morphTargetInfluences) {
-        this.mouthMesh.morphTargetInfluences[0] = 0;
-      }
-    }
-  };
+    };
 
-  animateSpeech();
-}
+    utterance.onend = () => {
+      this.resetSpeechFace();
+    };
+
+    utterance.onerror = () => {
+      this.resetSpeechFace();
+    };
+
+    this.speechUtterance = utterance;
+    speechSynthesis.speak(utterance);
+  }
 
 // speak(message: string) {
 
@@ -248,10 +308,23 @@ private applyAzureViseme(id: number) {
       // Keep forcing arms down every frame
       this.setHandsDown();
 
-      // Mouth animation
+      // Always update mouth amount; apply to morph and/or jaw.
+      this.mouthOpenAmount = THREE.MathUtils.lerp(
+        this.mouthOpenAmount,
+        this.isSpeaking ? this.mouthTargetAmount : 0,
+        0.2,
+      );
+      // Mouth animation: morph target first, jaw rotation fallback.
       if (this.mouthMesh?.morphTargetInfluences) {
-        this.mouthMesh.morphTargetInfluences[0] = Math.abs(Math.sin(Date.now() * 0.005));
+        this.mouthMesh.morphTargetInfluences[0] = THREE.MathUtils.clamp(this.mouthOpenAmount, 0, 1);
       }
+      if (this.jawBone) {
+        const jawOpenRadians = THREE.MathUtils.clamp(this.mouthOpenAmount, 0, 1) * 0.35;
+        this.jawBone.rotation.x = this.jawBaseX + jawOpenRadians;
+      }
+      this.updateTalkingBodyMotion();
+
+      this.updateBlink();
 
       // Eye movement
       if (this.leftEye && this.rightEye) {
@@ -259,6 +332,9 @@ private applyAzureViseme(id: number) {
         const eyeY = Math.cos(Date.now() * 0.002) * 0.025;
         this.leftEye.rotation.set(eyeY, eyeX, 0);
         this.rightEye.rotation.set(eyeY, eyeX, 0);
+        const eyeScaleY = THREE.MathUtils.clamp(1 - this.blinkAmount, 0.08, 1);
+        this.leftEye.scale.y = eyeScaleY;
+        this.rightEye.scale.y = eyeScaleY;
       }
     }
 
@@ -270,7 +346,90 @@ private applyAzureViseme(id: number) {
 
   ngOnDestroy(): void {
     cancelAnimationFrame(this.animationId);
+    speechSynthesis.cancel();
+    if (this.lipSyncTimer) {
+      clearInterval(this.lipSyncTimer);
+      this.lipSyncTimer = null;
+    }
     this.renderer.dispose();
+  }
+  private updateBlink() {
+    if (!this.leftEye || !this.rightEye) return;
+
+    const now = performance.now();
+    if (now >= this.nextBlinkAt) {
+      const phase = (now - this.nextBlinkAt) / 140;
+      if (phase <= 1) {
+        const closeOpen = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+        this.blinkAmount = closeOpen;
+      } else {
+        this.blinkAmount = 0;
+        this.nextBlinkAt = now + this.getNextBlinkDelay();
+      }
+    } else {
+      this.blinkAmount = THREE.MathUtils.lerp(this.blinkAmount, 0, 0.35);
+    }
+  }
+
+  private getNextBlinkDelay(): number {
+    return 1800 + Math.random() * 2600;
+  }
+
+  private resetSpeechFace() {
+    this.isSpeaking = false;
+    this.mouthOpenAmount = 0;
+    this.mouthTargetAmount = 0;
+    this.speechUtterance = null;
+    if (this.lipSyncTimer) {
+      clearInterval(this.lipSyncTimer);
+      this.lipSyncTimer = null;
+    }
+    if (this.mouthMesh?.morphTargetInfluences) {
+      this.mouthMesh.morphTargetInfluences[0] = 0;
+    }
+    if (this.jawBone) {
+      this.jawBone.rotation.x = this.jawBaseX;
+    }
+    if (this.headBone) {
+      this.headBone.rotation.x = this.headBaseX;
+      this.headBone.rotation.y = this.headBaseY;
+    }
+    if (this.chestBone) {
+      this.chestBone.rotation.x = this.chestBaseX;
+    }
+  }
+
+  private startLipSyncFallback() {
+    if (this.lipSyncTimer) {
+      clearInterval(this.lipSyncTimer);
+    }
+    this.lipSyncTimer = setInterval(() => {
+      if (!this.isSpeaking) return;
+      // Browser boundary events are unreliable; keep visible lip movement.
+      this.mouthTargetAmount = 0.2 + Math.random() * 0.7;
+    }, 120);
+  }
+
+  private updateTalkingBodyMotion() {
+    const t = performance.now() * 0.004;
+    if (this.isSpeaking) {
+      if (this.headBone) {
+        this.headBone.rotation.x = this.headBaseX + Math.sin(t * 1.2) * 0.03;
+        this.headBone.rotation.y = this.headBaseY + Math.sin(t * 0.9) * 0.02;
+      }
+      if (this.chestBone) {
+        this.chestBone.rotation.x = this.chestBaseX + Math.sin(t) * 0.015;
+      }
+      return;
+    }
+
+    if (this.headBone) {
+      this.headBone.rotation.x = THREE.MathUtils.lerp(this.headBone.rotation.x, this.headBaseX, 0.12);
+      this.headBone.rotation.y = THREE.MathUtils.lerp(this.headBone.rotation.y, this.headBaseY, 0.12);
+    }
+    if (this.chestBone) {
+      this.chestBone.rotation.x = THREE.MathUtils.lerp(this.chestBone.rotation.x, this.chestBaseX, 0.12);
+    }
   }
   // 🔥 ADD: MIC RECOGNITION (DO NOT CHANGE ANY EXISTING CODE)
 private recognition!: any;
