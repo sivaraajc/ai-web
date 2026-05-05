@@ -173,51 +173,47 @@ constructor(private cdr: ChangeDetectorRef) {}
     );
   }
 
-  speak(message: string) {
-    const text = message.trim();
-    if (!text) return;
+speak(message: string) {
+  const text = message.trim();
+  if (!text) return;
 
-    speechSynthesis.cancel();
-    this.resetSpeechFace();
+  speechSynthesis.cancel();
+  this.resetSpeechFace();
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-    utterance.lang = 'en-IN';
+  const utterance = new SpeechSynthesisUtterance(text);
 
-    utterance.onstart = () => {
-      this.isSpeaking = true;
-      this.mouthTargetAmount = 0.2;
-      this.startLipSyncFallback();
-    };
+  const voices = speechSynthesis.getVoices();
 
-    utterance.onboundary = (event) => {
-      // Approximate viseme intensity from spoken character type.
-      const spokenChar = text[event.charIndex] ?? '';
-      const isVowel = /[aeiou]/i.test(spokenChar);
-      const isClosedLip = /[bmp]/i.test(spokenChar);
+  // Pick a MALE voice (adjust name based on browser)
+  const maleVoice =
+    voices.find(v => v.name.toLowerCase().includes('male')) ||
+    voices.find(v => v.name.includes('Google UK English Male')) ||
+    voices.find(v => v.name.includes('Microsoft David')) ||
+    voices.find(v => v.name.includes('Alex')) || // macOS male voice
+    voices[0]; // fallback
 
-      if (isClosedLip) {
-        this.mouthTargetAmount = 0.08;
-      } else if (isVowel) {
-        this.mouthTargetAmount = 0.9;
-      } else {
-        this.mouthTargetAmount = 0.45;
-      }
-    };
-
-    utterance.onend = () => {
-      this.resetSpeechFace();
-    };
-
-    utterance.onerror = () => {
-      this.resetSpeechFace();
-    };
-
-    this.speechUtterance = utterance;
-    speechSynthesis.speak(utterance);
+  if (maleVoice) {
+    utterance.voice = maleVoice;
   }
+
+  utterance.rate = 1;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+  utterance.lang = 'en-IN';
+
+  utterance.onstart = () => {
+    this.isSpeaking = true;
+    this.mouthTargetAmount = 0.2;
+    this.startLipSyncFallback();
+  };
+
+  utterance.onend = () => {
+    this.resetSpeechFace();
+  };
+
+  this.speechUtterance = utterance;
+  speechSynthesis.speak(utterance);
+}
 
 // speak(message: string) {
 
