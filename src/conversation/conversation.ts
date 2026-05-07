@@ -117,23 +117,32 @@ async onSendMessage(showUserBubble = true) {
       this.cdr.detectChanges();
     });
   }
+const lowerText = messageText.toLowerCase();
 
-  //  LOCAL CUSTOM REPLIES
-  const lowerText = messageText.toLowerCase();
+let customReply: string | null = null;
 
-  let customReply: string | null = null;
+//  NAME QUESTIONS
+if (
+  lowerText.includes('what is your name') ||
+  lowerText.includes('your name') ||
+  lowerText.includes('who are you') ||
+  lowerText.includes('tell me your name')
+) {
+  customReply = 'I am Davies, developed by Siva';
+}
 
-  if (
-    lowerText.includes('who developed you') ||
-    lowerText.includes('who made you') ||
-    lowerText.includes('who created you') ||
-    lowerText.includes('which company developed you') ||
-    lowerText.includes('which company made you') ||
-    lowerText.includes('developer') ||
-    lowerText.includes('company')
-  ) {
-    customReply = 'This is an own project developed by DEV SR';
-  }
+//  DEVELOPER / COMPANY QUESTIONS
+else if (
+  lowerText.includes('who developed you') ||
+  lowerText.includes('who made you') ||
+  lowerText.includes('who created you') ||
+  lowerText.includes('which company developed you') ||
+  lowerText.includes('which company made you') ||
+  lowerText.includes('developer') ||
+  lowerText.includes('company')
+) {
+  customReply = 'This is an own project developed by DEV SR';
+}
 
   //  If custom reply exists, skip API call
   if (customReply) {
