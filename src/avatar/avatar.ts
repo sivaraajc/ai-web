@@ -182,39 +182,95 @@ speak(message: string) {
 
   const utterance = new SpeechSynthesisUtterance(text);
 
-  const voices = speechSynthesis.getVoices();
+  //  Load voices properly
+  const setMaleVoiceAndSpeak = () => {
+    const voices = speechSynthesis.getVoices();
 
-  // Pick a MALE voice (adjust name based on browser)
-  const maleVoice =
-    voices.find(v => v.name.toLowerCase().includes('male')) ||
-    voices.find(v => v.name.includes('Google UK English Male')) ||
-    voices.find(v => v.name.includes('Microsoft David')) ||
-    voices.find(v => v.name.includes('Alex')) || // macOS male voice
-    voices[0]; // fallback
+    console.log('Available voices:', voices);
 
-  if (maleVoice) {
-    utterance.voice = maleVoice;
+    //  Strong male voice priority list
+    const preferredMaleVoices = [
+      'Microsoft David',
+      'Microsoft Mark',
+      'Google UK English Male',
+      'Google English Male',
+      'Alex',
+      'Daniel',
+      'Fred',
+      'Aaron',
+      'Nathan',
+      'Tom',
+      'Lee'
+    ];
+
+    //  Exact preferred match
+    let selectedVoice =
+      voices.find(v =>
+        preferredMaleVoices.some(name =>
+          v.name.toLowerCase().includes(name.toLowerCase())
+        )
+      );
+
+    // Fallback male detection
+    if (!selectedVoice) {
+      selectedVoice = voices.find(v =>
+        v.name.toLowerCase().includes('male')
+      );
+    }
+
+    //  Final fallback → avoid obvious female names
+    if (!selectedVoice) {
+      selectedVoice = voices.find(v => {
+        const n = v.name.toLowerCase();
+
+        return ![
+          'zira',
+          'hazel',
+          'susan',
+          'female',
+          'samantha',
+          'victoria',
+          'karen',
+          'moira',
+          'zira'
+        ].some(f => n.includes(f));
+      });
+    }
+
+    //  Apply selected voice
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      console.log('Using voice:', selectedVoice.name);
+    }
+
+    utterance.rate = 0.95;
+    utterance.pitch = 0.7; //  deeper masculine tone
+    utterance.volume = 1;
+    utterance.lang = 'en-US';
+
+    utterance.onstart = () => {
+      this.isSpeaking = true;
+      this.mouthTargetAmount = 0.2;
+      this.startLipSyncFallback();
+    };
+
+    utterance.onend = () => {
+      this.resetSpeechFace();
+    };
+
+    this.speechUtterance = utterance;
+    speechSynthesis.speak(utterance);
+  };
+
+  // Important for Chrome voice loading
+  if (speechSynthesis.getVoices().length === 0) {
+    speechSynthesis.onvoiceschanged = () => {
+      setMaleVoiceAndSpeak();
+    };
+  } else {
+    setMaleVoiceAndSpeak();
   }
-
-  utterance.rate = 1;
-  utterance.pitch = 1;
-  utterance.volume = 1;
-  utterance.lang = 'en-IN';
-
-  utterance.onstart = () => {
-    this.isSpeaking = true;
-    this.mouthTargetAmount = 0.2;
-    this.startLipSyncFallback();
-  };
-
-  utterance.onend = () => {
-    this.resetSpeechFace();
-  };
-
-  this.speechUtterance = utterance;
-  speechSynthesis.speak(utterance);
 }
-
 // speak(message: string) {
 
 //   const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(
@@ -460,18 +516,52 @@ private startMic() {
 
   this.recognition.start();
 }
+// private handleMicCommand(text: string) {
+//   let reply = "I didn't understand that";
+
+//   if (text.includes('hello')) {
+//     reply = 'Hello! I am your AI avatar';
+//   }
+
+//   if (text.includes('how are you')) {
+//     reply = "I'm fine and ready to help you";
+//   }
+
+//   if (text.includes('stop')) {
+//     this.recognition.stop();
+//     reply = 'Mic stopped';
+//   }
+
+//   this.speak(reply);
+// }
 private handleMicCommand(text: string) {
   let reply = "I didn't understand that";
 
-  if (text.includes('hello')) {
+  // Greeting
+  if (text.includes('hello') || text.includes('hi')) {
     reply = 'Hello! I am your AI avatar';
   }
 
-  if (text.includes('how are you')) {
+  // Status
+  else if (text.includes('how are you')) {
     reply = "I'm fine and ready to help you";
   }
 
-  if (text.includes('stop')) {
+  // Developer / Company Questions
+  else if (
+    text.includes('who developed you') ||
+    text.includes('who made you') ||
+    text.includes('who created you') ||
+    text.includes('which company developed you') ||
+    text.includes('which company made you') ||
+    text.includes('developer') ||
+    text.includes('company')
+  ) {
+    reply = 'This is an own project developed by DEV SR';
+  }
+
+  // Stop mic
+  else if (text.includes('stop')) {
     this.recognition.stop();
     reply = 'Mic stopped';
   }

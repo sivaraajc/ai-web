@@ -51,56 +51,147 @@ private readonly SpeechRecognitionCtor =
     private cdr: ChangeDetectorRef
   ) {}
 
-  async onSendMessage(showUserBubble = true) {
-    if (!this.userMessage.trim()) return;
+  // async onSendMessage(showUserBubble = true) {
+  //   if (!this.userMessage.trim()) return;
 
-    const messageText = this.userMessage;
-    this.userMessage = '';
-    if (showUserBubble) {
-      this.ngZone.run(() => {
-        this.messages.push({
-          text: messageText,
-          sender: 'user',
-          timestamp: new Date()
-        });
-        this.cdr.detectChanges();
-      });
-    }
+  //   const messageText = this.userMessage;
+  //   this.userMessage = '';
+  //   if (showUserBubble) {
+  //     this.ngZone.run(() => {
+  //       this.messages.push({
+  //         text: messageText,
+  //         sender: 'user',
+  //         timestamp: new Date()
+  //       });
+  //       this.cdr.detectChanges();
+  //     });
+  //   }
 
+  //   this.ngZone.run(() => {
+  //     this.loading = true;
+  //     this.cdr.detectChanges();
+  //   });
+  //   try {
+  //     const response = await this.conversationser.chat(messageText);
+  //     this.ngZone.run(() => {
+  //       this.messages.push({
+  //         text: response,
+  //         sender: 'ai',
+  //         timestamp: new Date()
+  //       });
+  //       this.cdr.detectChanges();
+  //     });
+  //   } catch {
+  //     this.ngZone.run(() => {
+  //       this.messages.push({
+  //         text: 'Error while getting AI response',
+  //         sender: 'ai',
+  //         timestamp: new Date()
+  //       });
+  //       this.cdr.detectChanges();
+  //     });
+  //   } finally {
+  //     this.ngZone.run(() => {
+  //       this.loading = false;
+  //       this.cdr.detectChanges();
+  //     });
+  //     setTimeout(() => {
+  //       this.scrollToBottom();
+  //     });
+  //   }
+  // }
+async onSendMessage(showUserBubble = true) {
+  if (!this.userMessage.trim()) return;
+
+  const messageText = this.userMessage.trim();
+  this.userMessage = '';
+
+  // Show user message
+  if (showUserBubble) {
     this.ngZone.run(() => {
-      this.loading = true;
+      this.messages.push({
+        text: messageText,
+        sender: 'user',
+        timestamp: new Date()
+      });
       this.cdr.detectChanges();
     });
-    try {
-      const response = await this.conversationser.chat(messageText);
-      this.ngZone.run(() => {
-        this.messages.push({
-          text: response,
-          sender: 'ai',
-          timestamp: new Date()
-        });
-        this.cdr.detectChanges();
-      });
-    } catch {
-      this.ngZone.run(() => {
-        this.messages.push({
-          text: 'Error while getting AI response',
-          sender: 'ai',
-          timestamp: new Date()
-        });
-        this.cdr.detectChanges();
-      });
-    } finally {
-      this.ngZone.run(() => {
-        this.loading = false;
-        this.cdr.detectChanges();
-      });
-      setTimeout(() => {
-        this.scrollToBottom();
-      });
-    }
   }
 
+  //  LOCAL CUSTOM REPLIES
+  const lowerText = messageText.toLowerCase();
+
+  let customReply: string | null = null;
+
+  if (
+    lowerText.includes('who developed you') ||
+    lowerText.includes('who made you') ||
+    lowerText.includes('who created you') ||
+    lowerText.includes('which company developed you') ||
+    lowerText.includes('which company made you') ||
+    lowerText.includes('developer') ||
+    lowerText.includes('company')
+  ) {
+    customReply = 'This is an own project developed by DEV SR';
+  }
+
+  //  If custom reply exists, skip API call
+  if (customReply) {
+    this.ngZone.run(() => {
+      this.messages.push({
+        text: customReply!,
+        sender: 'ai',
+        timestamp: new Date()
+      });
+      this.cdr.detectChanges();
+    });
+
+    setTimeout(() => {
+      this.scrollToBottom();
+    });
+
+    return;
+  }
+
+  //  NORMAL API FLOW
+  this.ngZone.run(() => {
+    this.loading = true;
+    this.cdr.detectChanges();
+  });
+
+  try {
+    const response = await this.conversationser.chat(messageText);
+
+    this.ngZone.run(() => {
+      this.messages.push({
+        text: response,
+        sender: 'ai',
+        timestamp: new Date()
+      });
+      this.cdr.detectChanges();
+    });
+
+  } catch {
+    this.ngZone.run(() => {
+      this.messages.push({
+        text: 'Error while getting AI response',
+        sender: 'ai',
+        timestamp: new Date()
+      });
+      this.cdr.detectChanges();
+    });
+
+  } finally {
+    this.ngZone.run(() => {
+      this.loading = false;
+      this.cdr.detectChanges();
+    });
+
+    setTimeout(() => {
+      this.scrollToBottom();
+    });
+  }
+}
 ngAfterViewChecked() {
   const lastMsgIndex = this.messages.length - 1;
 
