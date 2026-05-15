@@ -1,0 +1,62 @@
+<div class="video-page">
+  <div class="video-hero">
+    <p class="eyebrow">Video</p>
+    <h1>Group video calls</h1>
+    <p class="lede">
+      Create or enter a room ID, optionally send the ID by email. Everyone joins the same Jitsi room for a
+      free, browser-based call — no account required.
+    </p>
+  </div>
+
+  <section class="panel" *ngIf="!joined">
+    <label class="field">
+      <span>Room ID</span>
+      <div class="row">
+        <input type="text" [(ngModel)]="roomId" name="roomId" autocomplete="off" spellcheck="false" />
+        <button type="button" class="btn secondary" (click)="roomId = generateRoomId()">New ID</button>
+        <button type="button" class="btn secondary" (click)="copyRoomId()">Copy</button>
+      </div>
+      <small class="hint" *ngIf="copyHint">{{ copyHint }}</small>
+    </label>
+
+    <label class="field">
+      <span>Your display name <span class="optional">(optional)</span></span>
+      <input type="text" [(ngModel)]="displayName" name="displayName" placeholder="e.g. Alex" />
+    </label>
+
+    <label class="field">
+      <span>Invitee email <span class="optional">(optional)</span></span>
+      <input
+        type="email"
+        [(ngModel)]="inviteEmail"
+        name="inviteEmail"
+        placeholder="friend@example.com — opens draft with room link"
+      />
+    </label>
+
+    <div class="actions">
+      <button type="button" class="btn primary" (click)="join()">Join meeting</button>
+      <a class="btn ghost" [href]="inviteMailto()">Email invite</a>
+    </div>
+  </section>
+
+  <section class="meet" *ngIf="joined && safeUrl">
+    <div class="meet-toolbar">
+      <div class="meet-meta">
+        <span>Room</span>
+        <code>{{ sanitizeRoom(roomId) }}</code>
+      </div>
+      <div class="meet-actions">
+        <a class="btn secondary sm" [href]="inviteMailto()">Email invite</a>
+        <button type="button" class="btn secondary sm" (click)="copyRoomId()">Copy room ID</button>
+        <button type="button" class="btn danger sm" (click)="leave()">Leave</button>
+      </div>
+    </div>
+    <iframe
+      class="jitsi-frame"
+      [src]="safeUrl"
+      title="Jitsi Meet"
+      allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
+    ></iframe>
+  </section>
+</div>
