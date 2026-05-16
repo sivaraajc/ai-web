@@ -2,6 +2,7 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
+  HostListener,
   OnDestroy,
   OnInit,
   ViewChild,
@@ -23,6 +24,7 @@ import type { MediaConnection } from 'peerjs';
 export class VideoCall implements OnInit, OnDestroy {
   @ViewChild('localVideo') localVideo?: ElementRef<HTMLVideoElement>;
   @ViewChild('remoteVideo') remoteVideo?: ElementRef<HTMLVideoElement>;
+  @ViewChild('videoStage') videoStage?: ElementRef<HTMLElement>;
 
   /** Host’s Peer ID — share this as the invite code. */
   hostInviteCode = '';
@@ -39,6 +41,16 @@ export class VideoCall implements OnInit, OnDestroy {
   guestDialing = false;
   hasRemote = false;
 
+  /** Keep the call UI (and controls) after the other party leaves until Hang up. */
+  private sessionOpen = false;
+
+  micEnabled = true;
+  camEnabled = true;
+  /** Locally silence everyone else’s audio (1:1: the remote feed). */
+  othersAudioMuted = false;
+
+  stageFullscreen = false;
+
   private peer: InstanceType<typeof Peer> | null = null;
   private mediaCall: MediaConnection | null = null;
   private localStream: MediaStream | null = null;
@@ -49,19 +61,42 @@ export class VideoCall implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    const invite = this.route.snapshot.queryParamMap.get('invite')?.trim();
-    if (invite) {
-      this.guestCodeInput = invite;
+    const invite = this.route.snapshot.queryParamMap.get('invite')?.trim() ?? '';
+    if (!invite) {
+      return;
     }
+    this.guestCodeInput = invite;
+    if (this.peer && this.hostInviteCode === invite) {
+      return;
+    }
+    queueMicrotask(() => this.joinAsGuest());
   }
 
   ngOnDestroy(): void {
     this.hangUp();
   }
 
+  @HostListener('document:fullscreenchange')
+  onFullscreenChange(): void {
+    const el = this.videoStage?.nativeElement;
+    this.stageFullscreen = !!el && document.fullscreenElement === el;
+    this.cdr.detectChanges();
+  }
+
   /** True while host is live and waiting for the first remote stream. */
   get hostSessionBusy(): boolean {
     return !!this.peer && this.hostWaiting && !this.hasRemote;
+  }
+
+  /** Show the video stage whenever we have media or an active dial / wait state. */
+  get showVideoStage(): boolean {
+    return (
+      this.hostWaiting ||
+      this.hasRemote ||
+      this.guestDialing ||
+      this.sessionOpen ||
+      !!this.localStream
+    );
   }
 
   appJoinUrl(): string {
@@ -80,7 +115,7 @@ export class VideoCall implements OnInit, OnDestroy {
       [
         'Hi,',
         '',
-        `I'm inviting you to a quick video call (PeerJS / WebRTC in the browser).`,
+        `I'm inviting you to a quick video call.`,
         '',
         `Your invite code: ${code}`,
         '',
@@ -118,6 +153,7 @@ export class VideoCall implements OnInit, OnDestroy {
     this.peer.on('open', (id) => {
       this.hostInviteCode = id;
       this.hostWaiting = true;
+      this.sessionOpen = true;
       this.statusLine = 'Room ready — share your invite code or send an email.';
       this.cdr.detectChanges();
       void this.bindLocalPreview();
@@ -161,6 +197,7 @@ export class VideoCall implements OnInit, OnDestroy {
     });
 
     this.peer.on('open', () => {
+      this.sessionOpen = true;
       void this.ensureLocalStream()
         .then((stream: MediaStream) => {
           this.showLocal(stream);
@@ -180,6 +217,11 @@ export class VideoCall implements OnInit, OnDestroy {
 
   hangUp(): void {
     this.teardownMedia();
+    this.sessionOpen = false;
+    this.micEnabled = true;
+    this.camEnabled = true;
+    this.othersAudioMuted = false;
+    this.stageFullscreen = false;
     this.hostInviteCode = '';
     this.hostWaiting = false;
     this.guestDialing = false;
@@ -221,6 +263,7 @@ export class VideoCall implements OnInit, OnDestroy {
   }
 
   private fail(err: unknown, fallback: string): void {
+    this.sessionOpen = false;
     this.guestDialing = false;
     this.hostWaiting = false;
     this.hostInviteCode = '';
@@ -265,12 +308,14 @@ export class VideoCall implements OnInit, OnDestroy {
     call.on('stream', (remote: MediaStream) => {
       this.hasRemote = true;
       this.guestDialing = false;
+      this.sessionOpen = true;
       this.statusLine = 'You’re connected';
       this.detailLine = '';
       const el = this.remoteVideo?.nativeElement;
       queueMicrotask(() => {
         if (el) {
           el.srcObject = remote;
+          this.applyOthersAudioMute(el);
           void el.play().catch(() => {});
         }
         const lv = this.localVideo?.nativeElement;
@@ -290,10 +335,55 @@ export class VideoCall implements OnInit, OnDestroy {
       if (this.hostWaiting) {
         this.statusLine = 'Room ready — waiting for someone to join again.';
       } else {
-        this.statusLine = '';
+        this.statusLine = this.localStream
+          ? 'You’re still in the call — use the controls or hang up when you’re done.'
+          : '';
       }
       this.cdr.detectChanges();
     });
+  }
+
+  toggleMic(): void {
+    if (!this.localStream) return;
+    const audioTracks = this.localStream.getAudioTracks();
+    this.micEnabled = !this.micEnabled;
+    for (const t of audioTracks) t.enabled = this.micEnabled;
+    this.cdr.detectChanges();
+  }
+
+  toggleCamera(): void {
+    if (!this.localStream) return;
+    const videoTracks = this.localStream.getVideoTracks();
+    this.camEnabled = !this.camEnabled;
+    for (const t of videoTracks) t.enabled = this.camEnabled;
+    this.cdr.detectChanges();
+  }
+
+  /** Locally mute/unmute all other participants’ audio (remote playback only). */
+  toggleMuteOthers(): void {
+    this.othersAudioMuted = !this.othersAudioMuted;
+    const el = this.remoteVideo?.nativeElement;
+    if (el) this.applyOthersAudioMute(el);
+    this.cdr.detectChanges();
+  }
+
+  async toggleFullscreen(): Promise<void> {
+    const el = this.videoStage?.nativeElement;
+    if (!el) return;
+    try {
+      if (document.fullscreenElement === el) {
+        await document.exitFullscreen();
+      } else {
+        await el.requestFullscreen();
+      }
+    } catch {
+      /* ignore — browser may block without gesture */
+    }
+  }
+
+  private applyOthersAudioMute(videoEl: HTMLVideoElement): void {
+    videoEl.muted = this.othersAudioMuted;
+    videoEl.volume = this.othersAudioMuted ? 0 : 1;
   }
 
   private teardownMedia(): void {
@@ -317,5 +407,6 @@ export class VideoCall implements OnInit, OnDestroy {
     }
     this.hasRemote = false;
     this.guestDialing = false;
+    this.sessionOpen = false;
   }
 }

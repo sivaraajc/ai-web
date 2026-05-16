@@ -6,10 +6,10 @@
       <mat-icon>arrow_back</mat-icon>
       <span>Home</span>
     </a>
-    <div class="vc-badge">
+    <!-- <div class="vc-badge">
       <mat-icon>lock</mat-icon>
       Peer-to-peer · PeerJS
-    </div>
+    </div> -->
   </header>
 
   <main class="vc-main">
@@ -122,7 +122,7 @@
       </a>
     </section>
 
-    <section class="vc-stage glass" *ngIf="hostWaiting || hasRemote || guestDialing">
+    <section class="vc-stage glass" #videoStage *ngIf="showVideoStage">
       <div class="vc-remote">
         <video #remoteVideo class="vc-video" playsinline autoplay></video>
         <div class="vc-remote-empty" *ngIf="!hasRemote">
@@ -132,6 +132,65 @@
       </div>
       <div class="vc-pip">
         <video #localVideo class="vc-video" playsinline autoplay muted></video>
+      </div>
+      <div class="vc-toolbar" role="toolbar" aria-label="Call controls">
+        <button
+          type="button"
+          class="vc-tool"
+          [class.vc-tool-off]="!micEnabled"
+          (click)="toggleMic()"
+          [attr.aria-pressed]="!micEnabled"
+          [attr.aria-label]="micEnabled ? 'Mute microphone' : 'Unmute microphone'"
+          title="Microphone"
+        >
+          <mat-icon>{{ micEnabled ? 'mic' : 'mic_off' }}</mat-icon>
+          <span>{{ micEnabled ? 'Mute' : 'Unmute' }}</span>
+        </button>
+        <button
+          type="button"
+          class="vc-tool"
+          [class.vc-tool-off]="!camEnabled"
+          (click)="toggleCamera()"
+          [attr.aria-pressed]="!camEnabled"
+          [attr.aria-label]="camEnabled ? 'Turn camera off' : 'Turn camera on'"
+          title="Camera"
+        >
+          <mat-icon>{{ camEnabled ? 'videocam' : 'videocam_off' }}</mat-icon>
+          <span>{{ camEnabled ? 'Stop video' : 'Start video' }}</span>
+        </button>
+        <button
+          type="button"
+          class="vc-tool"
+          [class.vc-tool-off]="othersAudioMuted"
+          (click)="toggleMuteOthers()"
+          [disabled]="!hasRemote"
+          [attr.aria-pressed]="othersAudioMuted"
+          [attr.aria-label]="
+            hasRemote
+              ? othersAudioMuted
+                ? 'Unmute other person’s audio'
+                : 'Mute other person’s audio (your speakers only)'
+              : 'Mute others — available when someone is connected'
+          "
+          title="Mute others (your speakers only)"
+        >
+          <mat-icon>{{ othersAudioMuted ? 'volume_off' : 'volume_up' }}</mat-icon>
+          <span>{{ othersAudioMuted ? 'Unmute others' : 'Mute others' }}</span>
+        </button>
+        <button
+          type="button"
+          class="vc-tool"
+          (click)="toggleFullscreen()"
+          [attr.aria-label]="stageFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+          title="Fullscreen"
+        >
+          <mat-icon>{{ stageFullscreen ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
+          <span>{{ stageFullscreen ? 'Exit full' : 'Fullscreen' }}</span>
+        </button>
+        <button type="button" class="vc-tool vc-tool-danger" (click)="hangUp()" aria-label="Hang up" title="Hang up">
+          <mat-icon>call_end</mat-icon>
+          <span>Hang up</span>
+        </button>
       </div>
     </section>
   </main>

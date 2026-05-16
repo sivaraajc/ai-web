@@ -1,15 +1,15 @@
 <div class="avatar-container">
   <canvas #canvas3d></canvas>
 
-  <!-- overlay loader -->
-  <div *ngIf="isloader" class="loader-overlay">
-   <div class="loader">
-  <div class="inner one"></div>
-  <div class="inner two"></div>
-  <div class="inner three"></div>
-</div>
+  <div *ngIf="isloader" class="loader-overlay" aria-busy="true" aria-label="Loading avatar">
+    <div class="loader-panel">
+      <div class="loader-ring" aria-hidden="true">
+        <div class="loader-ring-inner"></div>
+      </div>
+      <p class="loader-title">Davies</p>
+      <p class="loader-sub">Preparing your space…</p>
+    </div>
+  </div>
 
-  <!-- <div class="loader blurjs"></div> -->
+  <div id="speech-bubble" class="speech-bubble" aria-live="polite"></div>
 </div>
-
-<div id="speech-bubble" class="speech-bubble"></div>

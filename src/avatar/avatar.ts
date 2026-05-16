@@ -1,571 +1,1019 @@
 import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+
 import { CommonModule } from '@angular/common';
+
 import * as THREE from 'three';
+
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+import { MorphTargetLerp } from './morph-target-lerp';
+
+import { TextLipSyncPlayer } from './text-lipsync-player';
+
+
+
 @Component({
+
   selector: 'app-avatar',
+
   standalone: true,
+
   imports: [CommonModule],
+
   templateUrl: './avatar.html',
+
   styleUrls: ['./avatar.css'],
+
 })
+
 export class Avatar implements AfterViewInit, OnDestroy {
+
   @ViewChild('canvas3d', { static: true }) canvasRef!: ElementRef;
-  isloader:boolean = true
+
+  isloader: boolean = true;
+
   private renderer!: THREE.WebGLRenderer;
+
   private scene!: THREE.Scene;
+
   private camera!: THREE.PerspectiveCamera;
+
   private model!: THREE.Object3D;
+
   private animationId!: number;
 
-  private mouthMesh!: THREE.Mesh;
+
+
+  /** Aarya-style morph lerp across all face meshes */
+
+  private readonly morphLerp = new MorphTargetLerp();
+
+  private readonly textLipSync = new TextLipSyncPlayer();
+
+  private speechStartedAt = 0;
+
+  private lastLipSyncResyncAt = 0;
+
+  private outfitEntries: Array<{
+
+    mat: THREE.MeshStandardMaterial;
+
+    base: THREE.Color;
+
+    part: 'top' | 'bottom' | 'shoes';
+
+  }> = [];
+
+  private readonly dailyOutfitThemes: Array<{
+
+    top: number;
+
+    bottom: number;
+
+    shoes: number;
+
+  }> = [
+
+    { top: 0x7c3aed, bottom: 0x1e3a5f, shoes: 0x0f172a },
+
+    { top: 0x0ea5e9, bottom: 0x134e4a, shoes: 0x042f2e },
+
+    { top: 0x6ee7c5, bottom: 0x1e293b, shoes: 0x0f172a },
+
+    { top: 0xf43f5e, bottom: 0x312e81, shoes: 0x1e1b4b },
+
+    { top: 0xf59e0b, bottom: 0x422006, shoes: 0x292524 },
+
+    { top: 0x8da2ff, bottom: 0x1e3a8a, shoes: 0x172554 },
+
+    { top: 0x10b981, bottom: 0x064e3b, shoes: 0x022c22 },
+
+  ];
+
+
+
   private jawBone: THREE.Object3D | null = null;
+
   private jawBaseX = 0;
+
   private headBone: THREE.Object3D | null = null;
+
   private headBaseX = 0;
+
   private headBaseY = 0;
+
   private chestBone: THREE.Object3D | null = null;
+
   private chestBaseX = 0;
+
   private leftEye!: THREE.Object3D;
+
   private rightEye!: THREE.Object3D;
+
   private speechUtterance: SpeechSynthesisUtterance | null = null;
-  private lipSyncTimer: ReturnType<typeof setInterval> | null = null;
+
   private isSpeaking = false;
+
   private mouthOpenAmount = 0;
-  private mouthTargetAmount = 0;
+
   private blinkAmount = 0;
+
   private nextBlinkAt = 0;
 
-  // Arm bones
+  private blinkPhaseEnd = 0;
+
+
+
   private leftArm!: THREE.Object3D;
+
   private rightArm!: THREE.Object3D;
+
   private leftForeArm!: THREE.Object3D;
+
   private rightForeArm!: THREE.Object3D;
-constructor(private cdr: ChangeDetectorRef) {}
-  // Orbit controls
+
+
+
+  constructor(private cdr: ChangeDetectorRef) {}
+
+
+
   private controls!: OrbitControls;
 
- ngAfterViewInit(): void {
-  this.initThree();
-  this.loadModel();
-  this.animate();
-  // this.speak('Faaahhhh Faah faahhh');
 
-  // this.startMic(); 
 
-  window.addEventListener('resize', () => {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+  ngAfterViewInit(): void {
+
+    this.initThree();
+
+    this.loadModel();
+
+    this.animate();
+
+    window.addEventListener('resize', () => this.resizeToContainer());
+
+  }
+
+
+
+  resizeToContainer(): void {
+
+    if (!this.renderer || !this.camera) return;
+
+    const canvas = this.canvasRef?.nativeElement;
+
+    const parent = canvas?.parentElement;
+
+    const w = parent?.clientWidth || window.innerWidth;
+
+    const h = parent?.clientHeight || window.innerHeight;
+
+    if (w < 1 || h < 1) return;
+
+    this.camera.aspect = w / h;
+
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-  });
-}
-  
+
+    this.renderer.setSize(w, h);
+
+  }
+
+
 
   initThree() {
+
     const canvas = this.canvasRef.nativeElement;
 
     this.scene = new THREE.Scene();
 
-    this.camera = new THREE.PerspectiveCamera(
-      25,
-      window.innerWidth / window.innerHeight,
-      0.6,
-      2000,
-    );
+
+
+    const parent = canvas.parentElement;
+
+    const initW = parent?.clientWidth || window.innerWidth;
+
+    const initH = parent?.clientHeight || window.innerHeight;
+
+    this.camera = new THREE.PerspectiveCamera(25, initW / initH, 0.6, 2000);
+
     this.camera.lookAt(0, 1.5, 0);
-    this.camera.position.set(0, 1.5, 3); // was (2.5, 1, 2.3)
+
+    this.camera.position.set(0, 1.5, 3);
+
+
 
     this.renderer = new THREE.WebGLRenderer({
+
       canvas,
+
       alpha: true,
+
       antialias: true,
+
     });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+
+    this.renderer.setSize(initW, initH);
+
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+
 
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 5);
+
     hemiLight.position.set(0, 60, 0);
+
     this.scene.add(hemiLight);
 
+
+
     const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+
     dirLight.position.set(3, 50, 10);
+
     this.scene.add(dirLight);
 
+
+
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+
     this.controls.enableDamping = true;
+
     this.controls.dampingFactor = 0.05;
+
     this.controls.enablePan = false;
+
     this.controls.minDistance = 1.5;
+
     this.controls.maxDistance = 5;
+
     this.controls.target.set(0, 1.5, 0);
+
   }
 
+
+
   loadModel() {
+
     const loader = new GLTFLoader();
 
+
+
     loader.load(
+
       '/model.glb',
+
       (gltf) => {
+
         this.model = gltf.scene;
+
         this.model.scale.set(1.5, 1.5, 1.5);
+
         this.model.position.set(0, -0.8, 0);
+
         this.scene.add(this.model);
 
-        // Debug (optional)
-        this.model.traverse((obj) => {
-          console.log('Bone:', obj.name);
-        });
-       this.isloader = false;
-        this.cdr.detectChanges(); 
-        // Face references
-        this.mouthMesh = this.model.getObjectByName('Head') as THREE.Mesh;
+
+
+        this.morphLerp.collectFrom(this.model);
+
+        if (!this.morphLerp.hasJawOpen()) {
+
+          console.warn('[Avatar] jawOpen morph not found — mouth will not open');
+
+        }
+
+
+
+        this.isloader = false;
+
+        this.cdr.detectChanges();
+
+
+
+        this.setupOutfitMeshes();
+
+        this.applyDailyOutfitColor();
+
+
+
         this.jawBone =
+
           this.model.getObjectByName('Jaw') ||
+
           this.model.getObjectByName('jaw') ||
+
           this.model.getObjectByName('mixamorigJaw') ||
+
           this.model.getObjectByName('CC_Base_JawRoot') ||
+
           null;
+
         if (this.jawBone) {
+
           this.jawBaseX = this.jawBone.rotation.x;
+
         }
+
         this.headBone =
+
           this.model.getObjectByName('Head') ||
+
           this.model.getObjectByName('mixamorigHead') ||
+
           this.model.getObjectByName('CC_Base_Head') ||
+
           null;
+
         if (this.headBone) {
+
           this.headBaseX = this.headBone.rotation.x;
+
           this.headBaseY = this.headBone.rotation.y;
+
         }
+
         this.chestBone =
+
           this.model.getObjectByName('Spine2') ||
+
           this.model.getObjectByName('mixamorigSpine2') ||
+
           this.model.getObjectByName('Chest') ||
+
           null;
+
         if (this.chestBone) {
+
           this.chestBaseX = this.chestBone.rotation.x;
+
         }
+
         this.leftEye = this.model.getObjectByName('LeftEye')!;
+
         this.rightEye = this.model.getObjectByName('RightEye')!;
+
         this.nextBlinkAt = performance.now() + this.getNextBlinkDelay();
 
-        // Arm bones (try multiple common names)
+
+
         this.leftArm =
+
           this.model.getObjectByName('LeftArm') || this.model.getObjectByName('mixamorigLeftArm')!;
 
         this.rightArm =
+
           this.model.getObjectByName('RightArm') ||
+
           this.model.getObjectByName('mixamorigRightArm')!;
 
         this.leftForeArm =
+
           this.model.getObjectByName('LeftForeArm') ||
+
           this.model.getObjectByName('mixamorigLeftForeArm')!;
 
         this.rightForeArm =
+
           this.model.getObjectByName('RightForeArm') ||
+
           this.model.getObjectByName('mixamorigRightForeArm')!;
 
+
+
         this.setHandsDown();
+
       },
+
       undefined,
+
       (error) => console.error('Error loading GLB:', error),
+
     );
+
   }
 
-speak(message: string) {
-  const text = message.trim();
-  if (!text) return;
 
-  speechSynthesis.cancel();
-  this.resetSpeechFace();
 
-  const utterance = new SpeechSynthesisUtterance(text);
+  speak(message: string) {
 
-  //  Load voices properly
-  const setMaleVoiceAndSpeak = () => {
-    const voices = speechSynthesis.getVoices();
+    const text = message.trim();
 
-    console.log('Available voices:', voices);
+    if (!text) return;
 
-    //  Strong male voice priority list
-    const preferredMaleVoices = [
-      'Microsoft David',
-      'Microsoft Mark',
-      'Google UK English Male',
-      'Google English Male',
-      'Alex',
-      'Daniel',
-      'Fred',
-      'Aaron',
-      'Nathan',
-      'Tom',
-      'Lee'
-    ];
 
-    //  Exact preferred match
-    let selectedVoice =
-      voices.find(v =>
-        preferredMaleVoices.some(name =>
-          v.name.toLowerCase().includes(name.toLowerCase())
-        )
+
+    speechSynthesis.cancel();
+
+    this.resetSpeechFace();
+
+
+
+    const utterance = new SpeechSynthesisUtterance(text);
+
+
+
+    const setMaleVoiceAndSpeak = () => {
+
+      const voices = speechSynthesis.getVoices();
+
+
+
+      const preferredMaleVoices = [
+
+        'Microsoft David',
+
+        'Microsoft Mark',
+
+        'Google UK English Male',
+
+        'Google English Male',
+
+        'Alex',
+
+        'Daniel',
+
+        'Fred',
+
+        'Aaron',
+
+        'Nathan',
+
+        'Tom',
+
+        'Lee',
+
+      ];
+
+
+
+      let selectedVoice = voices.find((v) =>
+
+        preferredMaleVoices.some((name) => v.name.toLowerCase().includes(name.toLowerCase())),
+
       );
 
-    // Fallback male detection
-    if (!selectedVoice) {
-      selectedVoice = voices.find(v =>
-        v.name.toLowerCase().includes('male')
-      );
-    }
 
-    //  Final fallback → avoid obvious female names
-    if (!selectedVoice) {
-      selectedVoice = voices.find(v => {
-        const n = v.name.toLowerCase();
 
-        return ![
-          'zira',
-          'hazel',
-          'susan',
-          'female',
-          'samantha',
-          'victoria',
-          'karen',
-          'moira',
-          'zira'
-        ].some(f => n.includes(f));
-      });
-    }
+      if (!selectedVoice) {
 
-    //  Apply selected voice
-    if (selectedVoice) {
-      utterance.voice = selectedVoice;
-      console.log('Using voice:', selectedVoice.name);
-    }
+        selectedVoice = voices.find((v) => v.name.toLowerCase().includes('male'));
 
-    utterance.rate = 0.95;
-    utterance.pitch = 0.7; //  deeper masculine tone
-    utterance.volume = 1;
-    utterance.lang = 'en-US';
+      }
 
-    utterance.onstart = () => {
+
+
+      if (!selectedVoice) {
+
+        selectedVoice = voices.find((v) => {
+
+          const n = v.name.toLowerCase();
+
+          return !['zira', 'hazel', 'susan', 'female', 'samantha', 'victoria', 'karen', 'moira'].some(
+
+            (f) => n.includes(f),
+
+          );
+
+        });
+
+      }
+
+
+
+      if (selectedVoice) {
+
+        utterance.voice = selectedVoice;
+
+      }
+
+
+
+      utterance.rate = 0.95;
+
+      utterance.pitch = 0.7;
+
+      utterance.volume = 1;
+
+      utterance.lang = 'en-US';
+
+
+
+      const estDurationMs = Math.max(600, (text.length / (12.5 * utterance.rate)) * 1000);
+
+
+
       this.isSpeaking = true;
-      this.mouthTargetAmount = 0.2;
-      this.startLipSyncFallback();
+
+      this.lastLipSyncResyncAt = 0;
+
+      this.speechStartedAt = performance.now();
+
+      this.textLipSync.schedule(text, utterance.rate, estDurationMs);
+
+      this.textLipSync.begin(this.speechStartedAt);
+
+
+
+      utterance.onstart = () => {
+
+        const now = performance.now();
+
+        this.speechStartedAt = now;
+
+        this.textLipSync.begin(now);
+
+      };
+
+
+
+      utterance.onboundary = (ev) => {
+
+        if (!this.isSpeaking || ev.name !== 'word') return;
+
+        const elapsed = performance.now() - this.speechStartedAt;
+
+        const progress = ev.charIndex / Math.max(1, text.length);
+
+        if (progress < 0.08 || progress > 0.92) return;
+
+        const now = performance.now();
+
+        if (now - this.lastLipSyncResyncAt < 280) return;
+
+        this.lastLipSyncResyncAt = now;
+
+        this.textLipSync.fitToDuration(elapsed / progress);
+
+      };
+
+
+
+      utterance.onend = () => {
+
+        const actualMs = performance.now() - this.speechStartedAt;
+
+        this.textLipSync.fitToDuration(actualMs);
+
+      };
+
+
+
+      utterance.onerror = () => {
+
+        this.resetSpeechFace();
+
+      };
+
+
+
+      this.speechUtterance = utterance;
+
+      speechSynthesis.speak(utterance);
+
     };
 
-    utterance.onend = () => {
-      this.resetSpeechFace();
-    };
 
-    this.speechUtterance = utterance;
-    speechSynthesis.speak(utterance);
-  };
 
-  // Important for Chrome voice loading
-  if (speechSynthesis.getVoices().length === 0) {
-    speechSynthesis.onvoiceschanged = () => {
+    if (speechSynthesis.getVoices().length === 0) {
+
+      speechSynthesis.onvoiceschanged = () => setMaleVoiceAndSpeak();
+
+    } else {
+
       setMaleVoiceAndSpeak();
-    };
-  } else {
-    setMaleVoiceAndSpeak();
+
+    }
+
   }
-}
-// speak(message: string) {
 
-//   const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(
-//     "YOUR_AZURE_KEY",
-//     "YOUR_REGION"
-//   );
 
-//   speechConfig.speechSynthesisVoiceName = "en-US-JennyNeural";
-
-//   const audioConfig = SpeechSDK.AudioConfig.fromDefaultSpeakerOutput();
-
-//   const synthesizer = new SpeechSDK.SpeechSynthesizer(
-//     speechConfig,
-//     audioConfig
-//   );
-
-//   // 🔥 VISEME EVENT
-//   synthesizer.visemeReceived = (s, e) => {
-//     const visemeId = e.visemeId;
-
-//     this.applyAzureViseme(visemeId);
-//   };
-
-//   synthesizer.speakTextAsync(
-//     message,
-//     result => {
-//       console.log("Speech finished");
-//       synthesizer.close();
-//     },
-//     error => {
-//       console.error(error);
-//       synthesizer.close();
-//     }
-//   );
-// }
-private applyAzureViseme(id: number) {
-  if (!this.mouthMesh?.morphTargetInfluences) return;
-
-  const m = this.mouthMesh.morphTargetInfluences;
-
-  m.fill(0);
-
-  switch (id) {
-    case 1: // neutral
-      m[0] = 0.1;
-      break;
-
-    case 2: // open mouth
-      m[2] = 0.6;
-      break;
-
-    case 4: // wide open
-      m[3] = 1.0;
-      break;
-
-    case 8: // lips closed
-      m[1] = 0.8;
-      break;
-
-    case 14: // teeth visible
-      m[4] = 0.7;
-      break;
-
-    default:
-      m[0] = 0.2;
-  }
-}
 
   setHandsDown() {
+
     if (this.leftArm && this.rightArm) {
-      // Push arms almost straight down
+
       this.leftArm.rotation.set(1.1, 0.0, 0.1);
+
       this.rightArm.rotation.set(1.1, 0.0, -0.1);
+
     }
 
     if (this.leftForeArm && this.rightForeArm) {
-      // Keep forearms aligned downward
+
       this.leftForeArm.rotation.set(0.0, 0.0, 0.0);
+
       this.rightForeArm.rotation.set(0.0, 0.0, 0.0);
+
     }
+
   }
 
+
+
   animate = () => {
+
     this.animationId = requestAnimationFrame(this.animate);
 
+
+
     if (this.model) {
-      // Keep forcing arms down every frame
+
       this.setHandsDown();
 
-      // Always update mouth amount; apply to morph and/or jaw.
-      this.mouthOpenAmount = THREE.MathUtils.lerp(
-        this.mouthOpenAmount,
-        this.isSpeaking ? this.mouthTargetAmount : 0,
-        0.2,
-      );
-      // Mouth animation: morph target first, jaw rotation fallback.
-      if (this.mouthMesh?.morphTargetInfluences) {
-        this.mouthMesh.morphTargetInfluences[0] = THREE.MathUtils.clamp(this.mouthOpenAmount, 0, 1);
+
+
+      const now = performance.now();
+
+
+
+      if (this.isSpeaking) {
+
+        const frame = this.textLipSync.sampleAt(now);
+
+        if (!this.textLipSync.isActive()) {
+
+          this.resetSpeechFace();
+
+        } else {
+
+          this.morphLerp.applySpeechMorphs(frame.morphs);
+
+          const jawNow = this.morphLerp.getInfluence('jawOpen');
+
+          this.mouthOpenAmount = THREE.MathUtils.lerp(this.mouthOpenAmount, jawNow, 0.2);
+
+        }
+
+      } else {
+
+        this.morphLerp.applySpeechMorphs({}, 0.1, 0.08);
+
+        this.mouthOpenAmount = THREE.MathUtils.lerp(this.mouthOpenAmount, 0, 0.1);
+
       }
-      if (this.jawBone) {
-        const jawOpenRadians = THREE.MathUtils.clamp(this.mouthOpenAmount, 0, 1) * 0.35;
-        this.jawBone.rotation.x = this.jawBaseX + jawOpenRadians;
-      }
-      this.updateTalkingBodyMotion();
+
+
+
+      this.applyJawAndHeadMotion();
 
       this.updateBlink();
 
-      // Eye movement
+
+
       if (this.leftEye && this.rightEye) {
+
         const eyeX = Math.sin(Date.now() * 0.002) * 0.05;
+
         const eyeY = Math.cos(Date.now() * 0.002) * 0.025;
+
         this.leftEye.rotation.set(eyeY, eyeX, 0);
+
         this.rightEye.rotation.set(eyeY, eyeX, 0);
-        const eyeScaleY = THREE.MathUtils.clamp(1 - this.blinkAmount, 0.08, 1);
-        this.leftEye.scale.y = eyeScaleY;
-        this.rightEye.scale.y = eyeScaleY;
+
       }
+
     }
 
-    // ✅ OrbitControls update
+
+
     this.controls.update();
 
     this.renderer.render(this.scene, this.camera);
+
   };
+
+
 
   ngOnDestroy(): void {
+
     cancelAnimationFrame(this.animationId);
+
+    this.textLipSync.stop();
+
     speechSynthesis.cancel();
-    if (this.lipSyncTimer) {
-      clearInterval(this.lipSyncTimer);
-      this.lipSyncTimer = null;
-    }
+
     this.renderer.dispose();
+
   }
-  private updateBlink() {
-    if (!this.leftEye || !this.rightEye) return;
+
+
+
+  private updateBlink(): void {
 
     const now = performance.now();
-    if (now >= this.nextBlinkAt) {
-      const phase = (now - this.nextBlinkAt) / 140;
-      if (phase <= 1) {
-        const closeOpen = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
-        this.blinkAmount = closeOpen;
-      } else {
-        this.blinkAmount = 0;
-        this.nextBlinkAt = now + this.getNextBlinkDelay();
-      }
+
+
+
+    if (now < this.blinkPhaseEnd) {
+
+      const phase = 1 - (this.blinkPhaseEnd - now) / 200;
+
+      this.blinkAmount = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+
+      this.morphLerp.lerp('eyeBlinkLeft', this.blinkAmount, 1);
+
+      this.morphLerp.lerp('eyeBlinkRight', this.blinkAmount, 1);
+
+    } else if (now >= this.nextBlinkAt) {
+
+      this.blinkPhaseEnd = now + 200;
+
+      this.nextBlinkAt = now + this.getNextBlinkDelay();
+
     } else {
+
       this.blinkAmount = THREE.MathUtils.lerp(this.blinkAmount, 0, 0.35);
+
+      this.morphLerp.lerp('eyeBlinkLeft', 0, 0.25);
+
+      this.morphLerp.lerp('eyeBlinkRight', 0, 0.25);
+
     }
+
+
+
+    if (this.leftEye && this.rightEye) {
+
+      const eyeScaleY = THREE.MathUtils.clamp(1 - this.blinkAmount * 0.5, 0.85, 1);
+
+      this.leftEye.scale.y = eyeScaleY;
+
+      this.rightEye.scale.y = eyeScaleY;
+
+    }
+
   }
+
+
 
   private getNextBlinkDelay(): number {
+
     return 1800 + Math.random() * 2600;
+
   }
 
-  private resetSpeechFace() {
+
+
+  private resetSpeechFace(): void {
+
     this.isSpeaking = false;
+
+    this.lastLipSyncResyncAt = 0;
+
     this.mouthOpenAmount = 0;
-    this.mouthTargetAmount = 0;
+
     this.speechUtterance = null;
-    if (this.lipSyncTimer) {
-      clearInterval(this.lipSyncTimer);
-      this.lipSyncTimer = null;
-    }
-    if (this.mouthMesh?.morphTargetInfluences) {
-      this.mouthMesh.morphTargetInfluences[0] = 0;
-    }
+
+    this.textLipSync.stop();
+
+    this.morphLerp.resetSpeechTargets(0.25);
+
+
+
     if (this.jawBone) {
+
       this.jawBone.rotation.x = this.jawBaseX;
+
     }
+
     if (this.headBone) {
+
       this.headBone.rotation.x = this.headBaseX;
+
       this.headBone.rotation.y = this.headBaseY;
+
     }
+
     if (this.chestBone) {
+
       this.chestBone.rotation.x = this.chestBaseX;
+
     }
+
   }
 
-  private startLipSyncFallback() {
-    if (this.lipSyncTimer) {
-      clearInterval(this.lipSyncTimer);
-    }
-    this.lipSyncTimer = setInterval(() => {
-      if (!this.isSpeaking) return;
-      // Browser boundary events are unreliable; keep visible lip movement.
-      this.mouthTargetAmount = 0.2 + Math.random() * 0.7;
-    }, 120);
+
+
+  private setupOutfitMeshes(): void {
+
+    this.outfitEntries = [];
+
+    const partFromName = (name: string): 'top' | 'bottom' | 'shoes' | null => {
+
+      const n = name.toLowerCase();
+
+      if (n.includes('outfit_top') || n === 'outfit_top') return 'top';
+
+      if (n.includes('outfit_bottom') || n === 'outfit_bottom') return 'bottom';
+
+      if (n.includes('outfit_shoes') || n === 'outfit_shoes') return 'shoes';
+
+      return null;
+
+    };
+
+
+
+    this.model.traverse((obj) => {
+
+      if (!(obj instanceof THREE.Mesh)) return;
+
+      const part = partFromName(obj.name);
+
+      if (!part) return;
+
+
+
+      const sourceMats = Array.isArray(obj.material) ? obj.material : [obj.material];
+
+      const clonedMats = sourceMats.map((m) => {
+
+        if (m instanceof THREE.MeshStandardMaterial) {
+
+          const clone = m.clone();
+
+          this.outfitEntries.push({ mat: clone, base: clone.color.clone(), part });
+
+          return clone;
+
+        }
+
+        return m;
+
+      });
+
+      obj.material = clonedMats.length === 1 ? clonedMats[0] : clonedMats;
+
+    });
+
   }
 
-  private updateTalkingBodyMotion() {
-    const t = performance.now() * 0.004;
-    if (this.isSpeaking) {
-      if (this.headBone) {
-        this.headBone.rotation.x = this.headBaseX + Math.sin(t * 1.2) * 0.03;
-        this.headBone.rotation.y = this.headBaseY + Math.sin(t * 0.9) * 0.02;
-      }
-      if (this.chestBone) {
-        this.chestBone.rotation.x = this.chestBaseX + Math.sin(t) * 0.015;
-      }
-      return;
+
+
+  private applyDailyOutfitColor(): void {
+
+    const theme = this.dailyOutfitThemes[new Date().getDay()];
+
+    for (const entry of this.outfitEntries) {
+
+      const accent = new THREE.Color(theme[entry.part]);
+
+      entry.mat.color.copy(entry.base).lerp(accent, 0.7);
+
+      entry.mat.needsUpdate = true;
+
+    }
+
+  }
+
+
+
+  private applyJawAndHeadMotion(): void {
+
+    const open = THREE.MathUtils.clamp(this.mouthOpenAmount, 0, 1);
+
+    if (this.jawBone) {
+
+      const targetX = this.jawBaseX + open * 0.14;
+
+      this.jawBone.rotation.x = THREE.MathUtils.lerp(this.jawBone.rotation.x, targetX, 0.12);
+
     }
 
     if (this.headBone) {
-      this.headBone.rotation.x = THREE.MathUtils.lerp(this.headBone.rotation.x, this.headBaseX, 0.12);
-      this.headBone.rotation.y = THREE.MathUtils.lerp(this.headBone.rotation.y, this.headBaseY, 0.12);
+
+      this.headBone.rotation.x = THREE.MathUtils.lerp(
+
+        this.headBone.rotation.x,
+
+        this.headBaseX,
+
+        0.08,
+
+      );
+
+      this.headBone.rotation.y = THREE.MathUtils.lerp(
+
+        this.headBone.rotation.y,
+
+        this.headBaseY,
+
+        0.08,
+
+      );
+
     }
-    if (this.chestBone) {
-      this.chestBone.rotation.x = THREE.MathUtils.lerp(this.chestBone.rotation.x, this.chestBaseX, 0.12);
+
+  }
+
+
+
+  private recognition!: any;
+
+
+
+  private startMic() {
+
+    const SpeechRecognition =
+
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+
+
+    if (!SpeechRecognition) {
+
+      console.warn('Mic not supported in this browser');
+
+      return;
+
     }
+
+
+
+    this.recognition = new SpeechRecognition();
+
+    this.recognition.continuous = true;
+
+    this.recognition.interimResults = false;
+
+    this.recognition.lang = 'en-US';
+
+
+
+    this.recognition.onresult = (event: any) => {
+
+      const text = event.results[event.results.length - 1][0].transcript.toLowerCase();
+
+      this.handleMicCommand(text);
+
+    };
+
+
+
+    this.recognition.onerror = (e: any) => {
+
+      console.log('Mic error:', e);
+
+    };
+
+
+
+    this.recognition.start();
+
   }
-  // 🔥 ADD: MIC RECOGNITION (DO NOT CHANGE ANY EXISTING CODE)
-private recognition!: any;
 
-private startMic() {
-  const SpeechRecognition =
-    (window as any).SpeechRecognition ||
-    (window as any).webkitSpeechRecognition;
 
-  if (!SpeechRecognition) {
-    console.warn('Mic not supported in this browser');
-    return;
+
+  private handleMicCommand(text: string) {
+
+    let reply = "I didn't understand that";
+
+
+
+    if (text.includes('hello') || text.includes('hi')) {
+
+      reply = 'Hello! I am your AI avatar';
+
+    } else if (text.includes('how are you')) {
+
+      reply = "I'm fine and ready to help you";
+
+    } else if (
+
+      text.includes('who developed you') ||
+
+      text.includes('who made you') ||
+
+      text.includes('who created you') ||
+
+      text.includes('which company developed you') ||
+
+      text.includes('which company made you') ||
+
+      text.includes('developer') ||
+
+      text.includes('company')
+
+    ) {
+
+      reply = 'This is an own project developed by DEV SR';
+
+    } else if (text.includes('stop')) {
+
+      this.recognition.stop();
+
+      reply = 'Mic stopped';
+
+    }
+
+
+
+    this.speak(reply);
+
   }
 
-  this.recognition = new SpeechRecognition();
-  this.recognition.continuous = true;
-  this.recognition.interimResults = false;
-  this.recognition.lang = 'en-US';
-
-  this.recognition.onresult = (event: any) => {
-    const text = event.results[event.results.length - 1][0].transcript
-      .toLowerCase();
-
-    console.log('Mic input:', text);
-
-    this.handleMicCommand(text);
-  };
-
-  this.recognition.onerror = (e: any) => {
-    console.log('Mic error:', e);
-  };
-
-  this.recognition.start();
 }
-// private handleMicCommand(text: string) {
-//   let reply = "I didn't understand that";
 
-//   if (text.includes('hello')) {
-//     reply = 'Hello! I am your AI avatar';
-//   }
 
-//   if (text.includes('how are you')) {
-//     reply = "I'm fine and ready to help you";
-//   }
-
-//   if (text.includes('stop')) {
-//     this.recognition.stop();
-//     reply = 'Mic stopped';
-//   }
-
-//   this.speak(reply);
-// }
-private handleMicCommand(text: string) {
-  let reply = "I didn't understand that";
-
-  // Greeting
-  if (text.includes('hello') || text.includes('hi')) {
-    reply = 'Hello! I am your AI avatar';
-  }
-
-  // Status
-  else if (text.includes('how are you')) {
-    reply = "I'm fine and ready to help you";
-  }
-
-  // Developer / Company Questions
-  else if (
-    text.includes('who developed you') ||
-    text.includes('who made you') ||
-    text.includes('who created you') ||
-    text.includes('which company developed you') ||
-    text.includes('which company made you') ||
-    text.includes('developer') ||
-    text.includes('company')
-  ) {
-    reply = 'This is an own project developed by DEV SR';
-  }
-
-  // Stop mic
-  else if (text.includes('stop')) {
-    this.recognition.stop();
-    reply = 'Mic stopped';
-  }
-
-  this.speak(reply);
-}
-}

@@ -1,59 +1,121 @@
-<div class="chat-container" [ngClass]="{'chat-open': isChatOpen}">
+﻿<div class="chat-container" [ngClass]="{'chat-open': isChatOpen}">
 
-  <!-- Left column: Avatar -->
+  <div class="ambient" aria-hidden="true">
+    <span class="ambient-orb ambient-orb--a"></span>
+    <span class="ambient-orb ambient-orb--b"></span>
+  </div>
+
   <div class="left-col">
-    <app-avatar #avatarRef></app-avatar>
-  </div>
-
-  <!-- Right column: only visible when chat open -->
-  <div class="right-col" *ngIf="isChatOpen">
-
-    <div class="chat-content" #chatContent>
-      <div *ngFor="let msg of messages" [ngClass]="msg.sender">
-        <p>{{ msg.text }}</p>
-      </div>
-      <div *ngIf="loading" class="typing-wrapper">
-  <span class="loader"></span>
-</div>
+    <div class="avatar-stage">
+      <app-avatar #avatarRef></app-avatar>
     </div>
 
-    <div class="chat-footer">
-      <input
-        #chatInput
-        [(ngModel)]="userMessage"
-        (keydown.enter)="onSendMessage()"
-        [disabled]="loading"
-        [placeholder]="loading ? 'AI is typing...' : 'Type a message...'"
-      />
+    <nav class="avatar-dock" *ngIf="!isChatOpen" aria-label="Conversation controls">
       <button
-        (click)="onSendMessage()"
-        [disabled]="loading || !userMessage.trim()"
-        [ngClass]="{'can-send': !loading && !!userMessage.trim()}"
-      >
-        <mat-icon>{{ loading ? 'hourglass_top' : 'send' }}</mat-icon>
-      </button>
-    </div>
-
-  </div>
-
-  <!-- Bottom bar always visible -->
-  <div class="dd">
-    <div class="action-buttons">
-      <button
-        class="action-btn chat-btn"
-        [ngClass]="{'active': isChatOpen}"
+        type="button"
+        class="dock-btn dock-btn--primary"
         (click)="openChatInput()"
+        aria-label="Open chat"
       >
         <mat-icon>chat</mat-icon>
+        <span>Chat</span>
       </button>
       <button
-        class="action-btn mic-btn"
-        [ngClass]="{'listening': isMicMode}"
+        type="button"
+        class="dock-btn"
+        [class.dock-btn--listening]="isMicMode"
         (click)="toggleMicrophone()"
+        [attr.aria-pressed]="isMicMode"
+        aria-label="Voice input"
+      >
+        <mat-icon>mic</mat-icon>
+        <span>{{ isMicMode ? 'Listening' : 'Voice' }}</span>
+      </button>
+    </nav>
+  </div>
+
+  <aside class="right-col" *ngIf="isChatOpen" role="complementary" aria-label="Chat">
+
+    <header class="chat-header">
+      <div class="chat-header-avatar" aria-hidden="true">D</div>
+      <div class="chat-header-text">
+        <h2 class="chat-header-title">Davies</h2>
+        <p class="chat-header-status" [class.chat-header-status--live]="!loading">
+          {{ loading ? 'Thinking…' : 'Online' }}
+        </p>
+      </div>
+      <button
+        type="button"
+        class="chat-close-btn"
+        (click)="openChatInput()"
+        aria-label="Close chat"
+      >
+        <mat-icon>close</mat-icon>
+      </button>
+    </header>
+
+    <div class="chat-content" #chatContent role="log" aria-live="polite">
+      <div class="chat-empty" *ngIf="messages.length === 0 && !loading">
+        <mat-icon class="chat-empty-icon">forum</mat-icon>
+        <p class="chat-empty-title">Start a conversation</p>
+        <p class="chat-empty-hint">Ask Davies anything — type or tap the mic.</p>
+      </div>
+
+      <div
+        *ngFor="let msg of messages"
+        class="message-row"
+        [ngClass]="msg.sender"
+      >
+        <div class="message-bubble">
+          <p>{{ msg.text }}</p>
+        </div>
+      </div>
+
+      <div class="message-row ai" *ngIf="loading">
+        <div class="message-bubble message-bubble--typing">
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+        </div>
+      </div>
+    </div>
+
+    <footer class="chat-composer">
+      <button
+        type="button"
+        class="composer-btn composer-btn--mic"
+        [class.composer-btn--listening]="isMicMode"
+        (click)="toggleMicrophone()"
+        [attr.aria-pressed]="isMicMode"
+        [attr.aria-label]="isMicMode ? 'Stop listening' : 'Voice input'"
       >
         <mat-icon>mic</mat-icon>
       </button>
-    </div>
-  </div>
+
+      <div class="composer-field">
+        <input
+          #chatInput
+          type="text"
+          [(ngModel)]="userMessage"
+          (keydown.enter)="onSendMessage()"
+          [disabled]="loading"
+          [placeholder]="loading ? 'Davies is thinking…' : 'Message Davies…'"
+          aria-label="Message input"
+        />
+      </div>
+
+      <button
+        type="button"
+        class="composer-btn composer-btn--send"
+        (click)="onSendMessage()"
+        [disabled]="loading || !userMessage.trim()"
+        [class.composer-btn--active]="!loading && !!userMessage.trim()"
+        [attr.aria-label]="loading ? 'Waiting' : 'Send message'"
+      >
+        <mat-icon>{{ loading ? 'hourglass_top' : 'send' }}</mat-icon>
+      </button>
+    </footer>
+
+  </aside>
 
 </div>

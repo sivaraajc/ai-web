@@ -243,8 +243,11 @@ openChatInput() {
   this.isChatOpen = !this.isChatOpen;
 
   setTimeout(() => {
-    this.chatInput?.nativeElement?.focus();
-  }, 100);
+    this.avatarComponent?.resizeToContainer();
+    if (this.isChatOpen) {
+      this.chatInput?.nativeElement?.focus();
+    }
+  }, 450);
 }
 toggleMicrophone() {
   if (!this.SpeechRecognitionCtor) {

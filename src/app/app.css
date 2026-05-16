@@ -1,14 +1,21 @@
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* overflow: hidden; */
 }
 
 .app-nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.7rem 1.35rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.65rem max(0.75rem, env(safe-area-inset-right)) 0.65rem
+    max(0.75rem, env(safe-area-inset-left));
+  padding-top: max(0.65rem, env(safe-area-inset-top));
   backdrop-filter: blur(16px);
   background: rgba(10, 13, 18, 0.72);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -59,4 +66,31 @@
 .app-main {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* overflow: hidden; */
+}
+
+/* Routed views fill remaining space below the nav (avoid 100vh + header scroll) */
+.app-main > :not(router-outlet) {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  /* overflow: hidden; */
+}
+
+@media (max-width: 480px) {
+  .app-nav {
+    padding-left: max(0.6rem, env(safe-area-inset-left));
+    padding-right: max(0.6rem, env(safe-area-inset-right));
+  }
+
+  .brand {
+    font-size: 1rem;
+  }
+
+  .app-nav a:not(.brand) {
+    padding: 0.38rem 0.72rem;
+    font-size: 0.82rem;
+  }
 }

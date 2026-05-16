@@ -1,71 +1,97 @@
+:host {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
 .card {
-  height: 100vh;          
-  width: 100%;           /* fill full viewport */
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
   max-height: 100%;
   max-width: 100%;
-  background: linear-gradient(43deg, #4158D0 0%, #C850C0 46%, #FFCC70 100%);
-  color: white;
+  color: #e9edf5;
   display: flex;
   justify-content: center;
   align-items: center;
   text-align: center;
   border-radius: 0;
-  box-sizing: border-box; /* IMPORTANT: include padding in size */
-
-  /* remove any accidental overflow */
+  box-sizing: border-box;
   overflow: hidden;
-
-  /* Optional 3D effect */
   transform-style: preserve-3d;
-  perspective: 1000px;
-  transition: transform 0.5s ease;
+  perspective: 1200px;
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  background:
+    radial-gradient(ellipse 120% 90% at 50% -10%, rgba(141, 162, 255, 0.35), transparent 52%),
+    radial-gradient(ellipse 90% 70% at 100% 60%, rgba(110, 231, 197, 0.12), transparent 48%),
+    radial-gradient(ellipse 80% 60% at 0% 80%, rgba(103, 215, 245, 0.08), transparent 45%),
+    linear-gradient(155deg, #0b0e14 0%, #121a2a 38%, #0f1624 100%);
 }
 
 .card:hover {
-  transform: rotateY(3deg) rotateX(3deg); /* reduce scale to prevent scrollbars */
-  box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+  transform: rotateY(2deg) rotateX(1.5deg);
 }
 
-/* Card content */
 .card-content {
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   text-align: center;
-  gap: 10px;
-  padding: 0 20px; /* horizontal padding only, no vertical to prevent overflow */
+  gap: clamp(1.25rem, 3vw, 2rem);
+  padding: clamp(1.25rem, 4vw, 2.5rem) clamp(1.25rem, 5vw, 2.5rem);
   max-height: 100%;
-  max-width: 100%;
-  box-sizing: border-box; /* important */
-  overflow: hidden;       /* hide any overflowing content */
+  max-width: min(100%, 520px);
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-.card-content .card-title {
-  font-size: 3vw; /* responsive size */
+.card-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-kicker {
+  margin: 0;
+  font-size: 0.72rem;
   font-weight: 700;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
+  color: rgba(110, 231, 197, 0.95);
 }
 
-.card-content .card-para {
-  font-size: 1.5vw; /* responsive size */
-  opacity: 0.9;
+.card-title {
+  margin: 0;
+  font-size: clamp(1.65rem, 4.5vw, 2.35rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: #f1f5f9;
 }
 
-/* Hide scrollbars for all browsers */
-body::-webkit-scrollbar,
+.card-sub {
+  margin: 0;
+  max-width: 36ch;
+  font-size: clamp(0.9rem, 2.2vw, 1.05rem);
+  line-height: 1.55;
+  color: rgba(148, 163, 184, 0.95);
+  font-weight: 450;
+}
+
 .card::-webkit-scrollbar {
   display: none;
 }
 
-.card-para {
-      cursor: pointer;
-}
-
-
-/* From Uiverse.io by JkHuger */ 
+/* From Uiverse.io by JkHuger — tuned for Davies */
 .sparkle-button {
   --active: 0;
+  --transition: 0.35s;
+  --spark: 1.5s;
+  --cut: 0.12em;
   --bg: radial-gradient(
 			40% 50% at center 100%,
 			hsl(270 calc(var(--active) * 97%) 72% / var(--active)),
@@ -223,7 +249,7 @@ body::-webkit-scrollbar,
 
 .sparkle-button:is(:hover, :focus-visible) ~ :is(.bodydrop, .particle-pen) {
   --active: 1;
-  --play-state: runnin;
+  --play-state: running;
 }
 
 .sparkle-button:is(:hover, :focus-visible) {
@@ -289,4 +315,22 @@ body::-webkit-scrollbar,
 .sparkle-button svg {
   inline-size: 1.25em;
   translate: -25% -5%;
+}
+
+@media (max-width: 480px) {
+  .card:hover {
+    transform: none;
+  }
+
+  .card-content {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .sparkle-button {
+    font-size: 1rem;
+    padding: 0.85em 1.1em;
+    max-width: 100%;
+  }
 }
