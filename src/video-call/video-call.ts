@@ -1,89 +1,321 @@
-import { Component } from '@angular/core';
+import {
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { MatIconModule } from '@angular/material/icon';
+import Peer from 'peerjs';
+import type { MediaConnection } from 'peerjs';
 
 @Component({
   selector: 'app-video-call',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink, MatIconModule],
   templateUrl: './video-call.html',
   styleUrl: './video-call.css',
 })
-export class VideoCall {
-  roomId = '';
+export class VideoCall implements OnInit, OnDestroy {
+  @ViewChild('localVideo') localVideo?: ElementRef<HTMLVideoElement>;
+  @ViewChild('remoteVideo') remoteVideo?: ElementRef<HTMLVideoElement>;
+
+  /** Host’s Peer ID — share this as the invite code. */
+  hostInviteCode = '';
+  guestCodeInput = '';
   inviteEmail = '';
-  displayName = '';
-  joined = false;
-  copyHint = '';
-  safeUrl: SafeResourceUrl | null = null;
+  inviteFromName = '';
 
-  constructor(private readonly sanitizer: DomSanitizer) {
-    this.roomId = this.generateRoomId();
+  statusLine = '';
+  detailLine = '';
+  errorLine = '';
+  toast = '';
+
+  hostWaiting = false;
+  guestDialing = false;
+  hasRemote = false;
+
+  private peer: InstanceType<typeof Peer> | null = null;
+  private mediaCall: MediaConnection | null = null;
+  private localStream: MediaStream | null = null;
+
+  constructor(
+    private readonly cdr: ChangeDetectorRef,
+    private readonly route: ActivatedRoute,
+  ) {}
+
+  ngOnInit(): void {
+    const invite = this.route.snapshot.queryParamMap.get('invite')?.trim();
+    if (invite) {
+      this.guestCodeInput = invite;
+    }
   }
 
-  generateRoomId(): string {
-    const part = () => Math.random().toString(36).slice(2, 7);
-    return `davies-${part()}${part()}`;
+  ngOnDestroy(): void {
+    this.hangUp();
   }
 
-  sanitizeRoom(raw: string): string {
-    const cleaned = raw
-      .trim()
-      .replace(/[^a-zA-Z0-9_-]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-    return (cleaned || 'davies-room').slice(0, 64);
+  /** True while host is live and waiting for the first remote stream. */
+  get hostSessionBusy(): boolean {
+    return !!this.peer && this.hostWaiting && !this.hasRemote;
   }
 
-  join(): void {
-    const room = this.sanitizeRoom(this.roomId);
-    this.roomId = room;
-    const base = `https://meet.jit.si/${encodeURIComponent(room)}`;
-    const name = (this.displayName || 'Guest').trim();
-    const url =
-      name && name !== 'Guest'
-        ? `${base}#userInfo.displayName="${encodeURIComponent(name)}"`
-        : base;
-    this.safeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
-    this.joined = true;
-  }
-
-  leave(): void {
-    this.joined = false;
-    this.safeUrl = null;
+  appJoinUrl(): string {
+    const code = this.hostInviteCode.trim();
+    if (!code) return '';
+    const base = typeof window === 'undefined' ? '' : window.location.origin;
+    return `${base}/video?invite=${encodeURIComponent(code)}`;
   }
 
   inviteMailto(): string {
-    const room = this.sanitizeRoom(this.roomId);
-    const joinUrl = `https://meet.jit.si/${encodeURIComponent(room)}`;
-    const subject = encodeURIComponent(`Davies video call — room: ${room}`);
+    const code = this.hostInviteCode.trim();
+    const link = this.appJoinUrl();
+    const who = (this.inviteFromName || '').trim() || 'Me';
+    const subject = encodeURIComponent('Video call invite — Davies');
     const body = encodeURIComponent(
       [
-        'You are invited to a Davies video call (group calls: share the same room ID).',
+        'Hi,',
         '',
-        `Room ID: ${room}`,
-        `Join link: ${joinUrl}`,
+        `I'm inviting you to a quick video call (PeerJS / WebRTC in the browser).`,
         '',
-        'Open the link in a current browser and allow camera and microphone when prompted.',
+        `Your invite code: ${code}`,
+        '',
+        `Open this link to join (the code may already be filled in):`,
+        link,
+        '',
+        'Use Chrome or Edge if you can, allow camera and microphone when asked.',
+        '',
+        `— ${who}`,
       ].join('\n'),
     );
-    const email = this.inviteEmail.trim();
-    return email.length > 0
-      ? `mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}`
+    const to = this.inviteEmail.trim();
+    return to.length > 0
+      ? `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`
       : `mailto:?subject=${subject}&body=${body}`;
   }
 
-  async copyRoomId(): Promise<void> {
-    const room = this.sanitizeRoom(this.roomId);
-    this.roomId = room;
+  async startHosting(): Promise<void> {
+    this.clearMessages();
+    this.hangUp();
+    this.statusLine = 'Creating your room…';
+
     try {
-      await navigator.clipboard.writeText(room);
-      this.copyHint = 'Room ID copied.';
-      setTimeout(() => (this.copyHint = ''), 2500);
-    } catch {
-      this.copyHint = 'Could not copy — select and copy manually.';
-      setTimeout(() => (this.copyHint = ''), 3500);
+      this.peer = new Peer({ debug: 0 });
+    } catch (e) {
+      this.fail(e, 'Could not start PeerJS.');
+      return;
     }
+
+    this.peer.on('error', (err) => {
+      this.errorLine = err.message || 'Connection error.';
+      this.cdr.detectChanges();
+    });
+
+    this.peer.on('open', (id) => {
+      this.hostInviteCode = id;
+      this.hostWaiting = true;
+      this.statusLine = 'Room ready — share your invite code or send an email.';
+      this.cdr.detectChanges();
+      void this.bindLocalPreview();
+    });
+
+    this.peer.on('call', (call) => {
+      this.mediaCall = call;
+      this.attachCallHandlers(call);
+      void this.ensureLocalStream()
+        .then((stream: MediaStream) => {
+          call.answer(stream);
+        })
+        .catch((e: unknown) => {
+          this.fail(e, 'Camera and microphone are required to answer the call.');
+        });
+    });
+  }
+
+  joinAsGuest(): void {
+    const hostId = this.guestCodeInput.trim();
+    if (!hostId) {
+      this.detailLine = 'Paste the invite code the host sent you.';
+      return;
+    }
+
+    this.clearMessages();
+    this.hangUp();
+    this.guestDialing = true;
+    this.statusLine = 'Connecting…';
+
+    try {
+      this.peer = new Peer({ debug: 0 });
+    } catch (e) {
+      this.fail(e, 'Could not start PeerJS.');
+      return;
+    }
+
+    this.peer.on('error', (err) => {
+      this.errorLine = err.message || 'Could not reach the host.';
+      this.cdr.detectChanges();
+    });
+
+    this.peer.on('open', () => {
+      void this.ensureLocalStream()
+        .then((stream: MediaStream) => {
+          this.showLocal(stream);
+          const call = this.peer!.call(hostId, stream);
+          if (!call) {
+            this.fail(new Error('Call could not start.'), '');
+            return;
+          }
+          this.mediaCall = call;
+          this.attachCallHandlers(call);
+        })
+        .catch((e: unknown) => {
+          this.fail(e, 'Camera and microphone are required to join.');
+        });
+    });
+  }
+
+  hangUp(): void {
+    this.teardownMedia();
+    this.hostInviteCode = '';
+    this.hostWaiting = false;
+    this.guestDialing = false;
+    this.hasRemote = false;
+    this.statusLine = '';
+    this.detailLine = '';
+    this.errorLine = '';
+    this.cdr.detectChanges();
+  }
+
+  async copyCode(): Promise<void> {
+    if (!this.hostInviteCode) return;
+    await this.copy(this.hostInviteCode, 'Invite code copied.');
+  }
+
+  async copyJoinLink(): Promise<void> {
+    const url = this.appJoinUrl();
+    if (!url) return;
+    await this.copy(url, 'Join link copied.');
+  }
+
+  private async copy(text: string, ok: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.toast = ok;
+      this.cdr.detectChanges();
+      setTimeout(() => (this.toast = ''), 3200);
+    } catch {
+      this.toast = 'Select the text and copy manually.';
+      this.cdr.detectChanges();
+      setTimeout(() => (this.toast = ''), 3200);
+    }
+  }
+
+  private clearMessages(): void {
+    this.errorLine = '';
+    this.detailLine = '';
+    this.toast = '';
+  }
+
+  private fail(err: unknown, fallback: string): void {
+    this.guestDialing = false;
+    this.hostWaiting = false;
+    this.hostInviteCode = '';
+    this.errorLine = err instanceof Error ? err.message : fallback;
+    this.statusLine = '';
+    this.teardownMedia();
+    this.cdr.detectChanges();
+  }
+
+  private async bindLocalPreview(): Promise<void> {
+    try {
+      const stream = await this.ensureLocalStream();
+      this.showLocal(stream);
+    } catch (e: unknown) {
+      this.fail(e, 'Allow camera and microphone to host a call.');
+    }
+  }
+
+  private async ensureLocalStream(): Promise<MediaStream> {
+    if (this.localStream) return this.localStream;
+    try {
+      this.localStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true,
+      });
+      return this.localStream;
+    } catch {
+      throw new Error('Camera or microphone was denied or unavailable.');
+    }
+  }
+
+  private showLocal(stream: MediaStream): void {
+    const el = this.localVideo?.nativeElement;
+    if (el) {
+      el.srcObject = stream;
+      void el.play().catch(() => {});
+    }
+    this.cdr.detectChanges();
+  }
+
+  private attachCallHandlers(call: MediaConnection): void {
+    call.on('stream', (remote: MediaStream) => {
+      this.hasRemote = true;
+      this.guestDialing = false;
+      this.statusLine = 'You’re connected';
+      this.detailLine = '';
+      const el = this.remoteVideo?.nativeElement;
+      queueMicrotask(() => {
+        if (el) {
+          el.srcObject = remote;
+          void el.play().catch(() => {});
+        }
+        const lv = this.localVideo?.nativeElement;
+        if (lv && this.localStream) {
+          lv.srcObject = this.localStream;
+          void lv.play().catch(() => {});
+        }
+        this.cdr.detectChanges();
+      });
+    });
+
+    call.on('close', () => {
+      this.hasRemote = false;
+      this.detailLine = 'The other person left.';
+      const el = this.remoteVideo?.nativeElement;
+      if (el) el.srcObject = null;
+      if (this.hostWaiting) {
+        this.statusLine = 'Room ready — waiting for someone to join again.';
+      } else {
+        this.statusLine = '';
+      }
+      this.cdr.detectChanges();
+    });
+  }
+
+  private teardownMedia(): void {
+    this.mediaCall?.close();
+    this.mediaCall = null;
+    if (this.localStream) {
+      for (const t of this.localStream.getTracks()) t.stop();
+      this.localStream = null;
+    }
+    const lv = this.localVideo?.nativeElement;
+    if (lv) lv.srcObject = null;
+    const rv = this.remoteVideo?.nativeElement;
+    if (rv) rv.srcObject = null;
+    if (this.peer) {
+      try {
+        this.peer.destroy();
+      } catch {
+        /* ignore */
+      }
+      this.peer = null;
+    }
+    this.hasRemote = false;
+    this.guestDialing = false;
   }
 }

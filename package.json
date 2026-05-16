@@ -20,6 +20,7 @@
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
     "cohere-ai": "^8.0.0",
+    "peerjs": "^1.5.5",
     "rxjs": "~7.8.0",
     "three": "^0.183.2",
     "tslib": "^2.3.0"

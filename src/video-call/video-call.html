@@ -1,62 +1,138 @@
-<div class="video-page">
-  <div class="video-hero">
-    <p class="eyebrow">Video</p>
-    <h1>Group video calls</h1>
-    <p class="lede">
-      Create or enter a room ID, optionally send the ID by email. Everyone joins the same Jitsi room for a
-      free, browser-based call — no account required.
-    </p>
-  </div>
+<div class="vc">
+  <div class="vc-bg" aria-hidden="true"></div>
 
-  <section class="panel" *ngIf="!joined">
-    <label class="field">
-      <span>Room ID</span>
-      <div class="row">
-        <input type="text" [(ngModel)]="roomId" name="roomId" autocomplete="off" spellcheck="false" />
-        <button type="button" class="btn secondary" (click)="roomId = generateRoomId()">New ID</button>
-        <button type="button" class="btn secondary" (click)="copyRoomId()">Copy</button>
-      </div>
-      <small class="hint" *ngIf="copyHint">{{ copyHint }}</small>
-    </label>
-
-    <label class="field">
-      <span>Your display name <span class="optional">(optional)</span></span>
-      <input type="text" [(ngModel)]="displayName" name="displayName" placeholder="e.g. Alex" />
-    </label>
-
-    <label class="field">
-      <span>Invitee email <span class="optional">(optional)</span></span>
-      <input
-        type="email"
-        [(ngModel)]="inviteEmail"
-        name="inviteEmail"
-        placeholder="friend@example.com — opens draft with room link"
-      />
-    </label>
-
-    <div class="actions">
-      <button type="button" class="btn primary" (click)="join()">Join meeting</button>
-      <a class="btn ghost" [href]="inviteMailto()">Email invite</a>
+  <header class="vc-top">
+    <a routerLink="/" class="vc-back">
+      <mat-icon>arrow_back</mat-icon>
+      <span>Home</span>
+    </a>
+    <div class="vc-badge">
+      <mat-icon>lock</mat-icon>
+      Peer-to-peer · PeerJS
     </div>
-  </section>
+  </header>
 
-  <section class="meet" *ngIf="joined && safeUrl">
-    <div class="meet-toolbar">
-      <div class="meet-meta">
-        <span>Room</span>
-        <code>{{ sanitizeRoom(roomId) }}</code>
-      </div>
-      <div class="meet-actions">
-        <a class="btn secondary sm" [href]="inviteMailto()">Email invite</a>
-        <button type="button" class="btn secondary sm" (click)="copyRoomId()">Copy room ID</button>
-        <button type="button" class="btn danger sm" (click)="leave()">Leave</button>
-      </div>
+  <main class="vc-main">
+    <section class="vc-hero glass">
+      <p class="vc-kicker">Davies video</p>
+      <h1>Call in two steps</h1>
+      <p class="vc-sub">
+        One person <strong>hosts</strong> and gets an invite code. The other <strong>joins</strong> with that code.
+        Optional: send the invite by email from your own mail app — no server stores your video.
+      </p>
+      <ol class="vc-steps">
+        <li><span>1</span> Host taps <em>Create room</em> and copies the code or link.</li>
+        <li><span>2</span> Guest pastes the code and taps <em>Join call</em>.</li>
+        <li><span>3</span> Host can fill email + name and open a pre-written invite.</li>
+      </ol>
+    </section>
+
+    <p class="vc-toast" *ngIf="toast">{{ toast }}</p>
+    <p class="vc-err" *ngIf="errorLine">{{ errorLine }}</p>
+
+    <div class="vc-grid">
+      <article class="vc-card glass">
+        <div class="vc-card-head">
+          <div class="vc-icon host">
+            <mat-icon>hub</mat-icon>
+          </div>
+          <div>
+            <h2>Host</h2>
+            <p class="vc-card-desc">Start here — you’ll get the invite code.</p>
+          </div>
+        </div>
+        <button type="button" class="vc-btn primary" (click)="startHosting()" [disabled]="hostSessionBusy">
+          <mat-icon>add_circle_outline</mat-icon>
+          Create room &amp; invite code
+        </button>
+        <div class="vc-code-block" *ngIf="hostInviteCode">
+          <span class="vc-label">Your invite code</span>
+          <code class="vc-code">{{ hostInviteCode }}</code>
+          <div class="vc-row">
+            <button type="button" class="vc-btn ghost" (click)="copyCode()">
+              <mat-icon>content_copy</mat-icon>
+              Copy code
+            </button>
+            <button type="button" class="vc-btn ghost" (click)="copyJoinLink()">
+              <mat-icon>link</mat-icon>
+              Copy join link
+            </button>
+          </div>
+        </div>
+      </article>
+
+      <article class="vc-card glass">
+        <div class="vc-card-head">
+          <div class="vc-icon guest">
+            <mat-icon>login</mat-icon>
+          </div>
+          <div>
+            <h2>Guest</h2>
+            <p class="vc-card-desc">Paste the code the host shared.</p>
+          </div>
+        </div>
+        <label class="vc-field">
+          <span>Invite code</span>
+          <input
+            type="text"
+            [(ngModel)]="guestCodeInput"
+            name="guestCode"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Paste host code"
+          />
+        </label>
+        <div class="vc-row">
+          <button type="button" class="vc-btn primary" (click)="joinAsGuest()">
+            <mat-icon>call</mat-icon>
+            Join call
+          </button>
+          <button type="button" class="vc-btn danger" (click)="hangUp()">
+            <mat-icon>call_end</mat-icon>
+            Hang up
+          </button>
+        </div>
+        <p class="vc-detail" *ngIf="detailLine">{{ detailLine }}</p>
+      </article>
     </div>
-    <iframe
-      class="jitsi-frame"
-      [src]="safeUrl"
-      title="Jitsi Meet"
-      allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
-    ></iframe>
-  </section>
+
+    <p class="vc-statusline" *ngIf="statusLine">{{ statusLine }}</p>
+
+    <section class="vc-mail glass" *ngIf="hostInviteCode">
+      <div class="vc-mail-head">
+        <mat-icon>mail_outline</mat-icon>
+        <div>
+          <h3>Invite by email</h3>
+          <p>Opens your mail app with a ready message including the code and join link.</p>
+        </div>
+      </div>
+      <div class="vc-mail-fields">
+        <label class="vc-field">
+          <span>Recipient email <span class="opt">(optional)</span></span>
+          <input type="email" [(ngModel)]="inviteEmail" name="inviteEmail" placeholder="friend@example.com" />
+        </label>
+        <label class="vc-field">
+          <span>Your name in the email <span class="opt">(optional)</span></span>
+          <input type="text" [(ngModel)]="inviteFromName" name="inviteFrom" placeholder="e.g. Alex" />
+        </label>
+      </div>
+      <a class="vc-btn primary mail" [href]="inviteMailto()">
+        <mat-icon>send</mat-icon>
+        Compose email invite
+      </a>
+    </section>
+
+    <section class="vc-stage glass" *ngIf="hostWaiting || hasRemote || guestDialing">
+      <div class="vc-remote">
+        <video #remoteVideo class="vc-video" playsinline autoplay></video>
+        <div class="vc-remote-empty" *ngIf="!hasRemote">
+          <mat-icon>videocam_off</mat-icon>
+          <span>Waiting for the other person…</span>
+        </div>
+      </div>
+      <div class="vc-pip">
+        <video #localVideo class="vc-video" playsinline autoplay muted></video>
+      </div>
+    </section>
+  </main>
 </div>
